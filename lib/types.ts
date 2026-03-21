@@ -1,3 +1,96 @@
+/** Firestore Timestamp; at runtime use `Timestamp` from `firebase/firestore`. */
+export type FirestoreTimestamp = {
+  readonly seconds: number;
+  readonly nanoseconds: number;
+};
+
+/** Date-only string (YYYY-MM-DD). */
+export type ISODate = string;
+
+/** ISO-8601 datetime string with offset. */
+export type ISODateTime = string;
+
+export type TimeRange = {
+  start: ISODateTime;
+  end: ISODateTime;
+};
+
+export type FreeWindow = TimeRange & {
+  quality: "high" | "medium" | "low";
+};
+
+/** `users/{userId}` */
+export type UserDoc = {
+  name: string;
+  email: string;
+  photoUrl: string;
+  timezone: string;
+  calendarConnected: boolean;
+  ghostMode: boolean;
+  createdAt: FirestoreTimestamp;
+  updatedAt: FirestoreTimestamp;
+};
+
+/** `network/{connectionId}` */
+export type NetworkConnectionDoc = {
+  ownerUserId: string;
+  memberUserId: string;
+  memberName: string;
+  memberEmail: string;
+  memberPhotoUrl: string;
+  relationStatus: "pending" | "accepted" | "blocked";
+  createdAt: FirestoreTimestamp;
+  updatedAt: FirestoreTimestamp;
+};
+
+export type SlotCandidate = {
+  start: ISODateTime;
+  end: ISODateTime;
+  availableCount: number;
+  score: number;
+};
+
+/** `events/{eventId}` */
+export type EventDoc = {
+  title: string;
+  createdBy: string;
+  participantIds: string[];
+  dateRangeStart: ISODate;
+  dateRangeEnd: ISODate;
+  durationMinutes: number;
+  timezone: string;
+  status: "draft" | "active" | "finalized" | "cancelled";
+  bestSlot: SlotCandidate | null;
+  finalizedSlot: SlotCandidate | null;
+  createdAt: FirestoreTimestamp;
+  updatedAt: FirestoreTimestamp;
+};
+
+/** `events/{eventId}/participants/{userId}` */
+export type EventParticipantDoc = {
+  userId: string;
+  name: string;
+  email: string;
+  photoUrl: string;
+  role: "organizer" | "member";
+  ghostMode: boolean;
+  calendarConnected: boolean;
+  joinedAt: FirestoreTimestamp;
+  updatedAt: FirestoreTimestamp;
+};
+
+/** `events/{eventId}/availability/{userId}` */
+export type EventAvailabilityDoc = {
+  userId: string;
+  source: "google_calendar" | "manual" | "unknown";
+  busyBlocks: TimeRange[];
+  freeWindows: FreeWindow[];
+  lastSyncedAt: FirestoreTimestamp;
+  updatedAt: FirestoreTimestamp;
+};
+
+// --- UI / mock (not Firestore) ---
+
 export type ChatSuggestion = {
   title: string;
   body: string;

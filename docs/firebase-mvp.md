@@ -1,0 +1,108 @@
+# Firebase MVP (Firestore)
+
+Service account setup is separate from this doc. Here: **collections and fields** only.
+
+## Collections
+
+```
+users
+network
+events
+events/{eventId}/participants
+events/{eventId}/availability
+```
+
+**Not in MVP:** `events/{eventId}/messages` (skip messaging for now).
+
+---
+
+## `users/{userId}`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `name` | string | Display name |
+| `email` | string | |
+| `photoUrl` | string | Empty string if none |
+| `timezone` | string | IANA, e.g. `America/Los_Angeles` |
+| `calendarConnected` | boolean | |
+| `ghostMode` | boolean | |
+| `createdAt` | timestamp | |
+| `updatedAt` | timestamp | |
+
+---
+
+## `network/{connectionId}`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `ownerUserId` | string | Who owns this connection row |
+| `memberUserId` | string | Other user |
+| `memberName` | string | Denormalized |
+| `memberEmail` | string | |
+| `memberPhotoUrl` | string | |
+| `relationStatus` | string | e.g. `accepted` |
+| `createdAt` | timestamp | |
+| `updatedAt` | timestamp | |
+
+---
+
+## `events/{eventId}`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `title` | string | |
+| `createdBy` | string | `userId` |
+| `participantIds` | array of string | User ids |
+| `dateRangeStart` | string | Date-only ISO, e.g. `2026-03-21` |
+| `dateRangeEnd` | string | |
+| `durationMinutes` | number | |
+| `timezone` | string | IANA |
+| `status` | string | e.g. `active` |
+| `bestSlot` | object or null | See below |
+| `finalizedSlot` | object or null | Same shape as `bestSlot` when set |
+| `createdAt` | timestamp | |
+| `updatedAt` | timestamp | |
+
+**`bestSlot` / `finalizedSlot`**
+
+| Field | Type |
+| --- | --- |
+| `start` | string (ISO datetime with offset) |
+| `end` | string |
+| `availableCount` | number |
+| `score` | number (0–1) |
+
+---
+
+## `events/{eventId}/participants/{userId}`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `userId` | string | Same as document id |
+| `name` | string | |
+| `email` | string | |
+| `photoUrl` | string | |
+| `role` | string | e.g. `member` |
+| `ghostMode` | boolean | |
+| `calendarConnected` | boolean | |
+| `joinedAt` | timestamp | |
+| `updatedAt` | timestamp | |
+
+---
+
+## `events/{eventId}/availability/{userId}`
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `userId` | string | Same as document id |
+| `source` | string | e.g. `google_calendar` |
+| `busyBlocks` | array of `{ start, end }` | ISO datetimes |
+| `freeWindows` | array of `{ start, end, quality }` | `quality` e.g. `high` |
+| `lastSyncedAt` | timestamp | |
+| `updatedAt` | timestamp | |
+
+---
+
+## MVP rule
+
+Store only what you need to: show user, show network, create event, attach participants, compute best time.

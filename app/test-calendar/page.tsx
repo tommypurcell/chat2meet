@@ -16,8 +16,8 @@ export default function TestCalendarPage() {
           </p>
 
           <div className="space-y-3">
-            <GoogleCalendarConnect userId="user_tommy" />
-            <GoogleCalendarDisconnect userId="user_tommy" />
+            <GoogleCalendarConnect userId="user_phil" />
+            <GoogleCalendarDisconnect userId="user_phil" />
           </div>
 
           <div className="mt-6 p-4 bg-blue-50 rounded text-sm">
@@ -45,7 +45,7 @@ export default function TestCalendarPage() {
           <h2 className="text-xl font-bold mb-4 text-gray-900">
             Your Calendar Events
           </h2>
-          <CalendarEventsList userId="user_tommy" />
+          <CalendarEventsList userId="user_phil" />
         </div>
       </div>
     </div>

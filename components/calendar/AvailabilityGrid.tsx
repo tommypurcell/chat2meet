@@ -1,7 +1,15 @@
 import React, { useState, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { MOCK_CALENDAR_EVENTS } from "@/lib/data";
 
-const DAYS = ["Mon 24", "Tue 25", "Wed 26", "Thu 27", "Fri 28"] as const;
+const DAYS_DATES = [
+  "2026-03-16",
+  "2026-03-17",
+  "2026-03-18",
+  "2026-03-19",
+  "2026-03-20"
+];
+const DAYS = ["Mon 16", "Tue 17", "Wed 18", "Thu 19", "Fri 20"] as const;
 
 const TIME_SLOTS: string[] = [];
 for (let h = 9; h <= 17; h++) {
@@ -11,16 +19,42 @@ for (let h = 9; h <= 17; h++) {
 
 type CellKey = `${number}-${number}`;
 
-// Simulated "other people's" availability (heatmap overlay)
-const OTHERS_AVAILABILITY: Record<CellKey, number> = {
-  "1-2": 2, "1-3": 3, "1-4": 3, "1-5": 2,
-  "2-4": 1, "2-5": 2, "2-6": 2, "2-7": 1,
-  "3-6": 2, "3-7": 3, "3-8": 3, "3-9": 2,
-  "0-10": 1, "0-11": 2, "0-12": 2,
-  "4-2": 2, "4-3": 3, "4-4": 2,
+const generateAvailability = (): Record<CellKey, number> => {
+  const availability: Record<CellKey, number> = {};
+  const totalUsers = Object.keys(MOCK_CALENDAR_EVENTS).length;
+  
+  // Initialize all slots to max free (everyone available)
+  for (let dayIdx = 0; dayIdx < DAYS_DATES.length; dayIdx++) {
+    for (let slotIdx = 0; slotIdx < TIME_SLOTS.length; slotIdx++) {
+      availability[`${dayIdx}-${slotIdx}`] = totalUsers;
+    }
+  }
+
+  // Subtract availability for busy blocks
+  Object.values(MOCK_CALENDAR_EVENTS).forEach(userEvents => {
+    userEvents.forEach(event => {
+      const startMs = new Date(event.start).getTime();
+      const endMs = new Date(event.end).getTime();
+      
+      DAYS_DATES.forEach((dateStr, dayIdx) => {
+        TIME_SLOTS.forEach((time, slotIdx) => {
+          const [hStr, mStr] = time.split(":");
+          const slotTimeStr = `${dateStr}T${hStr.padStart(2, "0")}:${mStr.padStart(2, "0")}:00-07:00`;
+          const slotMs = new Date(slotTimeStr).getTime();
+          
+          if (slotMs >= startMs && slotMs < endMs) {
+            availability[`${dayIdx}-${slotIdx}`]--;
+          }
+        });
+      });
+    });
+  });
+  
+  return availability;
 };
 
-const MAX_OTHERS = 3;
+const OTHERS_AVAILABILITY = generateAvailability();
+const MAX_OTHERS = Object.keys(MOCK_CALENDAR_EVENTS).length;
 
 export function AvailabilityGrid() {
   const [selected, setSelected] = useState<Set<CellKey>>(new Set());

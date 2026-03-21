@@ -1,23 +1,278 @@
 import { google } from "@ai-sdk/google";
 import { streamText, tool, convertToModelMessages, stepCountIs, type UIMessage } from "ai";
 import { z } from "zod";
+import { google as googleApis } from "googleapis";
+import { decrypt, encrypt } from "@/lib/encryption";
+import { collection, timestamps } from "@/lib/api-helpers";
+import {
+  eventsToBusyBlocks,
+  calculateFreeWindows,
+  findCommonFreeSlots,
+} from "@/lib/calendar-utils";
+import type { SchedulingParticipant } from "@/lib/types";
+import { getSessionUserId } from "@/lib/auth-session";
+import { defaultDevUserId } from "@/lib/dev-user-ids";
+import {
+  formatCalendarEventsForPrompt,
+  formatCalendarLoadErrorPrompt,
+  formatNoCalendarConnectedPrompt,
+} from "@/lib/format-calendar-for-prompt";
+
+function parseSchedulingParticipants(raw: unknown): SchedulingParticipant[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(
+      (p): p is Record<string, unknown> =>
+        typeof p === "object" && p !== null && typeof p.memberUserId === "string",
+    )
+    .map((p) => ({
+      memberUserId: p.memberUserId as string,
+      memberName: typeof p.memberName === "string" ? p.memberName : "",
+      memberEmail: typeof p.memberEmail === "string" ? p.memberEmail : "",
+    }));
+}
 
 export async function POST(req: Request) {
-  const { messages }: { messages: UIMessage[] } = await req.json();
+  const body = (await req.json()) as {
+    messages?: UIMessage[];
+    schedulingParticipants?: unknown;
+    currentUserId?: string;
+    /** Preformatted markdown from the client (same data as GET /api/calendar/google/events). */
+    calendarContext?: string;
+  };
+  const messages = body.messages ?? [];
 
-  const result = streamText({
-    model: google("gemini-2.5-flash-lite"),
-    system: `You are When2Meet Agent, a smart scheduling assistant.
+  // Session cookie is authoritative when present. Otherwise use `currentUserId` from the client
+  // body (same uid as `/api/auth/me`) so the calendar block matches the user whose events you see
+  // in the browser — fetch to `/api/chat` must send `credentials: "include"` from the client.
+  const sessionUserId = await getSessionUserId();
+  const fromBody =
+    typeof body.currentUserId === "string" ? body.currentUserId.trim() : "";
+
+  let currentUserId: string;
+  let calendarUserIdSource: "session" | "body" | "dev";
+
+  if (sessionUserId) {
+    currentUserId = sessionUserId;
+    calendarUserIdSource = "session";
+    if (fromBody && fromBody !== sessionUserId) {
+      console.warn(
+        "[Chat API] body.currentUserId does not match session; using session uid",
+      );
+    }
+  } else if (fromBody) {
+    currentUserId = fromBody;
+    calendarUserIdSource = "body";
+  } else {
+    currentUserId = defaultDevUserId();
+    calendarUserIdSource = "dev";
+  }
+
+  console.log(
+    "[Chat API] currentUserId:",
+    currentUserId,
+    "source:",
+    calendarUserIdSource,
+  );
+
+  const schedulingParticipants = parseSchedulingParticipants(
+    body.schedulingParticipants,
+  );
+
+  const clientCalendar =
+    typeof body.calendarContext === "string" ? body.calendarContext.trim() : "";
+
+  // Prefer the same preformatted block the browser already built from GET /api/calendar/google/events
+  // so the agent always matches what you see in devtools. Fallback: fetch on the server.
+  let userCalendarData = "";
+  if (clientCalendar) {
+    userCalendarData = clientCalendar;
+    console.log(
+      "[Chat API] calendar prompt: using client calendarContext,",
+      clientCalendar.length,
+      "chars",
+    );
+  } else {
+    try {
+      if (currentUserId) {
+        const now = new Date();
+        const nextWeek = new Date(now);
+        nextWeek.setDate(now.getDate() + 7);
+
+        const accountsSnapshot = await collection("users")
+          .doc(currentUserId)
+          .collection("calendarAccounts")
+          .where("provider", "==", "google")
+          .where("isActive", "==", true)
+          .limit(1)
+          .get();
+
+        if (accountsSnapshot.empty) {
+          userCalendarData = formatNoCalendarConnectedPrompt(currentUserId);
+        } else {
+          const accountDoc = accountsSnapshot.docs[0];
+          const accountData = accountDoc.data();
+
+          const accessToken = decrypt(accountData.accessToken);
+          const refreshToken = accountData.refreshToken
+            ? decrypt(accountData.refreshToken)
+            : null;
+
+          const oauth2Client = new googleApis.auth.OAuth2(
+            process.env.GOOGLE_CLIENT_ID,
+            process.env.GOOGLE_CLIENT_SECRET,
+            process.env.OAUTH_REDIRECT_URI
+          );
+
+          oauth2Client.setCredentials({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+
+          const tokenExpiresAt = accountData.tokenExpiresAt?.toDate();
+          if (tokenExpiresAt && tokenExpiresAt <= new Date() && refreshToken) {
+            const { credentials } = await oauth2Client.refreshAccessToken();
+            const ts = timestamps();
+            await collection("users")
+              .doc(currentUserId)
+              .collection("calendarAccounts")
+              .doc(accountDoc.id)
+              .update({
+                accessToken: credentials.access_token
+                  ? encrypt(credentials.access_token)
+                  : accountData.accessToken,
+                tokenExpiresAt: credentials.expiry_date
+                  ? new Date(credentials.expiry_date)
+                  : null,
+                updatedAt: ts.updatedAt,
+              });
+          }
+
+          const calendar = googleApis.calendar({ version: "v3", auth: oauth2Client });
+
+          const response = await calendar.events.list({
+            calendarId: "primary",
+            timeMin: now.toISOString(),
+            timeMax: nextWeek.toISOString(),
+            maxResults: 50,
+            singleEvents: true,
+            orderBy: "startTime",
+          });
+
+          const events = response.data.items || [];
+
+          console.log(
+            "[Chat API] server calendar fetch:",
+            events.length,
+            "events (user:",
+            currentUserId,
+            ")",
+          );
+
+          const rangeLabel = `${now.toISOString().split("T")[0]} → ${nextWeek.toISOString().split("T")[0]}`;
+
+          const mapped = events
+            .filter((e) => e.start?.dateTime)
+            .map((e) => ({
+              summary: e.summary,
+              start: e.start!.dateTime!,
+              end: e.end?.dateTime,
+            }));
+
+          let timeZone = "America/Los_Angeles";
+          try {
+            const userSnap = await collection("users").doc(currentUserId).get();
+            const t = userSnap.data()?.timezone;
+            if (typeof t === "string" && t.trim()) timeZone = t.trim();
+          } catch {
+            /* keep default */
+          }
+
+          userCalendarData = formatCalendarEventsForPrompt(
+            currentUserId,
+            mapped,
+            `next 7 days (${rangeLabel})`,
+            timeZone,
+          );
+        }
+      } else {
+        userCalendarData = `
+
+## User's Google Calendar
+No user id in session — cannot load calendar.`;
+      }
+    } catch (error) {
+      console.error("[Chat API] Error fetching calendar for system prompt:", error);
+      userCalendarData = formatCalendarLoadErrorPrompt(
+        error instanceof Error ? error.message : "unknown error",
+      );
+    }
+  }
+
+  console.log(
+    "[Chat API] System prompt calendar section length:",
+    userCalendarData.length,
+    "chars",
+  );
+
+  const schedulingBlock =
+    schedulingParticipants.length > 0
+      ? `
+
+## People to schedule with (from the user's network — do not ask for user IDs)
+The user already chose who is in this meeting:
+${schedulingParticipants.map((p) => `- ${p.memberName || "Contact"} (${p.memberEmail}) → \`userId\` for tools: \`${p.memberUserId}\``).join("\n")}
+
+Rules:
+- Do not ask the user to provide user IDs or technical identifiers.
+- For getSchedule, pass each person's \`memberUserId\` as the \`userId\` argument.
+- For findOverlap, set \`userIds\` to the memberUserId values for everyone in this meeting (use the list above). If you call findOverlap with an empty userIds array, the server will use this list.
+- For getFriends, the list above is authoritative — do not ask the user to name people unless they want to add someone new.
+`
+      : "";
+
+  const systemPrompt = `You are When2Meet Agent, a smart scheduling assistant.
 Help users find times to meet with their friends and colleagues.
+
+## Current User
+The logged-in user's ID is: ${currentUserId ?? "(unknown)"}
+
+IMPORTANT: Today's date is ${new Date().toISOString().split("T")[0]}.
+
+${userCalendarData}
 
 On your first message, introduce yourself briefly. Then:
 - Keep responses brief and conversational
-- When a user mentions wanting to meet with someone specific, use your tools to find overlapping free times and suggest specific times without asking lots of follow-up questions
+- For the **current user's** schedule in the next ~7 days, rely on the **User's Google Calendar** and **Computed availability** sections above when present
+- **"When am I free?"** Use the **Free** gaps in **Computed availability** (timezone shown there). Never say you are "free all day" on a day that has any **Busy** interval or timed event. Do not invent free time inside a busy block.
+- When a user mentions meeting with someone specific, use your tools to find overlapping free times and suggest specific times
 - Call suggestTimes when you find good meeting times to display them interactively
+${schedulingBlock}`;
 
-Today's date is ${new Date().toISOString().split("T")[0]}.`,
+  console.log("=== AGENT INPUT (System Prompt) ===");
+  console.log(systemPrompt);
+  console.log("=== AGENT INPUT (Messages) ===");
+  console.log(JSON.stringify(messages, null, 2));
+
+  const result = streamText({
+    model: google("gemini-2.5-flash-lite"),
+    system: systemPrompt,
     messages: await convertToModelMessages(messages),
     stopWhen: stepCountIs(5),
+    onStepFinish({ text, toolCalls, toolResults, finishReason, usage }) {
+      console.log("=== AGENT STEP FINISH ===");
+      console.log("Text Output:", text);
+      console.log("Tool Calls:", JSON.stringify(toolCalls, null, 2));
+      console.log("Tool Results:", JSON.stringify(toolResults, null, 2));
+      console.log("Finish Reason:", finishReason);
+      console.log("Usage:", JSON.stringify(usage));
+    },
+    onFinish({ text, finishReason, usage }) {
+      console.log("=== AGENT STREAM FINISH ===");
+      console.log("Final Text Output:", text);
+      console.log("Finish Reason:", finishReason);
+      console.log("Total Usage:", JSON.stringify(usage));
+    },
     tools: {
       suggestTimes: tool({
         description:
@@ -36,115 +291,343 @@ Today's date is ${new Date().toISOString().split("T")[0]}.`,
             .string()
             .describe("Brief message explaining why these times work"),
         }),
-        execute: async ({ times, message }) => ({
-          suggestedTimes: times,
-          explanation: message,
-        }),
+        execute: async ({ times, message }) => {
+          console.log("=== TOOL: suggestTimes ===");
+          console.log("Times:", times);
+          console.log("Message:", message);
+          return {
+            suggestedTimes: times,
+            explanation: message,
+          };
+        },
       }),
 
       getFriends: tool({
         description: "Get the current user's list of friends and contacts",
         inputSchema: z.object({}),
-        execute: async () => [
-          { id: "u1", name: "Alice Chen", email: "alice@example.com" },
-          { id: "u2", name: "Bob Park", email: "bob@example.com" },
-          { id: "u3", name: "Carmen Liu", email: "carmen@example.com" },
-          { id: "u4", name: "David Kim", email: "david@example.com" },
-        ],
+        execute: async () => {
+          console.log("=== TOOL: getFriends ===");
+          const friends = schedulingParticipants.length > 0
+            ? schedulingParticipants.map((p) => ({
+                id: p.memberUserId,
+                name: p.memberName || "Contact",
+                email: p.memberEmail,
+              }))
+            : [
+                { id: "u1", name: "Alice Chen", email: "alice@example.com" },
+                { id: "u2", name: "Bob Park", email: "bob@example.com" },
+                { id: "u3", name: "Carmen Liu", email: "carmen@example.com" },
+                { id: "u4", name: "David Kim", email: "david@example.com" },
+              ];
+          console.log("Returning friends:", friends);
+          return friends;
+        },
       }),
 
       getSchedule: tool({
         description:
-          "Get a user's existing calendar events and busy blocks for a date range",
+          "Get calendar events and busy blocks for a date range from Google Calendar. The current user's next ~7 days are usually already in the system prompt — use this for other users or different ranges.",
         inputSchema: z.object({
-          userId: z.string().describe("The user ID to get schedule for"),
+          userId: z.string().describe("The user ID to get schedule for (e.g., 'user_tommy')"),
           startDate: z.string().describe("Start date in YYYY-MM-DD format"),
           endDate: z.string().describe("End date in YYYY-MM-DD format"),
         }),
-        execute: async ({ userId }) => {
-          const mockSchedules: Record<
-            string,
-            Array<{ title: string; start: string; end: string }>
-          > = {
-            u1: [
-              {
-                title: "Standup",
-                start: "2026-03-23T09:00:00",
-                end: "2026-03-23T09:30:00",
-              },
-              {
-                title: "Design review",
-                start: "2026-03-24T14:00:00",
-                end: "2026-03-24T15:00:00",
-              },
-            ],
-            u2: [
-              {
-                title: "1:1 with manager",
-                start: "2026-03-23T10:00:00",
-                end: "2026-03-23T11:00:00",
-              },
-              {
-                title: "Sprint planning",
-                start: "2026-03-25T09:00:00",
-                end: "2026-03-25T11:00:00",
-              },
-            ],
-            u3: [
-              {
-                title: "Client call",
-                start: "2026-03-23T13:00:00",
-                end: "2026-03-23T14:00:00",
-              },
-              {
-                title: "Team lunch",
-                start: "2026-03-24T12:00:00",
-                end: "2026-03-24T13:30:00",
-              },
-            ],
-            u4: [
-              {
-                title: "Workshop",
-                start: "2026-03-24T09:00:00",
-                end: "2026-03-24T12:00:00",
-              },
-            ],
-          };
-          return { userId, events: mockSchedules[userId] ?? [] };
+        execute: async ({ userId, startDate, endDate }) => {
+          try {
+            console.log("[getSchedule] Fetching calendar for userId:", userId);
+            console.log("[getSchedule] Date range:", startDate, "to", endDate);
+
+            // Get calendar account
+            const accountsSnapshot = await collection("users")
+              .doc(userId)
+              .collection("calendarAccounts")
+              .where("provider", "==", "google")
+              .where("isActive", "==", true)
+              .limit(1)
+              .get();
+
+            console.log("[getSchedule] Found calendar accounts:", accountsSnapshot.size);
+
+            if (accountsSnapshot.empty) {
+              console.log("[getSchedule] No calendar connected for user:", userId);
+              return {
+                userId,
+                events: [],
+                busyBlocks: [],
+                message: "No calendar connected - user appears to be free",
+              };
+            }
+
+            const accountDoc = accountsSnapshot.docs[0];
+            const accountData = accountDoc.data();
+
+            // Decrypt tokens
+            const accessToken = decrypt(accountData.accessToken);
+            const refreshToken = accountData.refreshToken
+              ? decrypt(accountData.refreshToken)
+              : null;
+
+            // Set up OAuth client
+            const oauth2Client = new googleApis.auth.OAuth2(
+              process.env.GOOGLE_CLIENT_ID,
+              process.env.GOOGLE_CLIENT_SECRET,
+              process.env.OAUTH_REDIRECT_URI
+            );
+
+            oauth2Client.setCredentials({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+
+            // Check if token needs refresh
+            const tokenExpiresAt = accountData.tokenExpiresAt?.toDate();
+            if (tokenExpiresAt && tokenExpiresAt <= new Date()) {
+              if (!refreshToken) {
+                return {
+                  userId,
+                  events: [],
+                  error: "Calendar token expired",
+                };
+              }
+
+              const { credentials } = await oauth2Client.refreshAccessToken();
+
+              const ts = timestamps();
+              await collection("users")
+                .doc(userId)
+                .collection("calendarAccounts")
+                .doc(accountDoc.id)
+                .update({
+                  accessToken: credentials.access_token
+                    ? encrypt(credentials.access_token)
+                    : accountData.accessToken,
+                  tokenExpiresAt: credentials.expiry_date
+                    ? new Date(credentials.expiry_date)
+                    : null,
+                  updatedAt: ts.updatedAt,
+                });
+            }
+
+            // Fetch events from Google Calendar
+            const calendar = googleApis.calendar({ version: "v3", auth: oauth2Client });
+
+            const rangeStart = new Date(startDate);
+            const rangeEnd = new Date(endDate);
+
+            const response = await calendar.events.list({
+              calendarId: "primary",
+              timeMin: rangeStart.toISOString(),
+              timeMax: rangeEnd.toISOString(),
+              maxResults: 250,
+              singleEvents: true,
+              orderBy: "startTime",
+            });
+
+            const events = response.data.items || [];
+
+            console.log("[getSchedule] Fetched events from Google Calendar:", events.length);
+            console.log("[getSchedule] Sample events:", events.slice(0, 3).map(e => ({
+              summary: e.summary,
+              start: e.start?.dateTime || e.start?.date,
+              end: e.end?.dateTime || e.end?.date
+            })));
+
+            // Convert to busy blocks for agent
+            const busyBlocks = eventsToBusyBlocks(events);
+
+            // Summarize events for agent
+            const eventSummaries = events
+              .filter((e) => e.start?.dateTime)
+              .map((e) => ({
+                title: e.summary || "Busy",
+                start: e.start?.dateTime,
+                end: e.end?.dateTime,
+              }));
+
+            console.log("[getSchedule] Returning event summaries:", eventSummaries.length);
+            console.log("[getSchedule] Busy blocks:", busyBlocks.length);
+
+            const result = {
+              userId,
+              events: eventSummaries,
+              busyBlocks,
+              totalEvents: events.length,
+            };
+
+            console.log("=== TOOL RESULT: getSchedule ===");
+            console.log(JSON.stringify(result, null, 2));
+
+            return result;
+          } catch (error) {
+            console.error(`Error fetching schedule for ${userId}:`, error);
+            const errorResult = {
+              userId,
+              events: [],
+              error: error instanceof Error ? error.message : "Unknown error",
+            };
+            console.log("=== TOOL ERROR: getSchedule ===");
+            console.log(JSON.stringify(errorResult, null, 2));
+            return errorResult;
+          }
         },
       }),
 
       findOverlap: tool({
         description:
-          "Find overlapping free time slots between multiple users for a meeting",
+          "Find overlapping free time slots between multiple users for a meeting using their real Google Calendar data",
         inputSchema: z.object({
           userIds: z
             .array(z.string())
-            .describe("List of user IDs to find overlap for"),
+            .default([])
+            .describe(
+              "User IDs to check. Omit or pass [] when the user already chose people from Add network — their IDs will be applied automatically.",
+            ),
           startDate: z.string().describe("Start date in YYYY-MM-DD format"),
           endDate: z.string().describe("End date in YYYY-MM-DD format"),
           durationMinutes: z
             .number()
-            .describe("Required meeting duration in minutes"),
+            .describe("Required meeting duration in minutes (default: 60)"),
         }),
-        execute: async ({ userIds, durationMinutes }) => ({
-          suggestedSlots: [
-            {
-              start: "2026-03-23T15:00:00",
-              end: "2026-03-23T16:00:00",
-              availableFor: userIds,
-              confidence: "high",
-            },
-            {
-              start: "2026-03-25T14:00:00",
-              end: "2026-03-25T15:00:00",
-              availableFor: userIds,
-              confidence: "medium",
-            },
-          ],
-          searchedUsers: userIds,
-          duration: durationMinutes,
-        }),
+        execute: async ({ userIds, startDate, endDate, durationMinutes = 60 }) => {
+          try {
+            const rangeStart = new Date(startDate);
+            const rangeEnd = new Date(endDate);
+
+            const resolvedUserIds =
+              userIds.length > 0
+                ? userIds
+                : schedulingParticipants.map((p) => p.memberUserId);
+
+            if (resolvedUserIds.length === 0) {
+              return {
+                suggestedSlots: [],
+                searchedUsers: [],
+                duration: durationMinutes,
+                error:
+                  "No participants selected. The user should choose people from their network (Add network) before finding overlap.",
+              };
+            }
+
+            // Fetch availability for each user
+            const userAvailability = new Map();
+
+            for (const userId of resolvedUserIds) {
+              try {
+                // Get calendar account
+                const accountsSnapshot = await collection("users")
+                  .doc(userId)
+                  .collection("calendarAccounts")
+                  .where("provider", "==", "google")
+                  .where("isActive", "==", true)
+                  .limit(1)
+                  .get();
+
+                if (accountsSnapshot.empty) {
+                  // User has no calendar - assume available during working hours
+                  userAvailability.set(userId, [
+                    {
+                      start: rangeStart.toISOString(),
+                      end: rangeEnd.toISOString(),
+                      quality: "high" as const,
+                    },
+                  ]);
+                  continue;
+                }
+
+                const accountDoc = accountsSnapshot.docs[0];
+                const accountData = accountDoc.data();
+
+                // Decrypt tokens
+                const accessToken = decrypt(accountData.accessToken);
+                const refreshToken = accountData.refreshToken
+                  ? decrypt(accountData.refreshToken)
+                  : null;
+
+                // Set up OAuth client
+                const oauth2Client = new googleApis.auth.OAuth2(
+                  process.env.GOOGLE_CLIENT_ID,
+                  process.env.GOOGLE_CLIENT_SECRET,
+                  process.env.OAUTH_REDIRECT_URI
+                );
+
+                oauth2Client.setCredentials({
+                  access_token: accessToken,
+                  refresh_token: refreshToken,
+                });
+
+                // Fetch events
+                const calendar = googleApis.calendar({ version: "v3", auth: oauth2Client });
+
+                const response = await calendar.events.list({
+                  calendarId: "primary",
+                  timeMin: rangeStart.toISOString(),
+                  timeMax: rangeEnd.toISOString(),
+                  maxResults: 250,
+                  singleEvents: true,
+                });
+
+                const events = response.data.items || [];
+
+                // Convert to busy blocks and calculate free windows
+                const busyBlocks = eventsToBusyBlocks(events);
+                const freeWindows = calculateFreeWindows(
+                  busyBlocks,
+                  rangeStart,
+                  rangeEnd
+                );
+
+                userAvailability.set(userId, freeWindows);
+              } catch (error) {
+                console.error(`Error fetching availability for ${userId}:`, error);
+                userAvailability.set(userId, []);
+              }
+            }
+
+            // Find common free slots
+            const commonSlots = findCommonFreeSlots(userAvailability, durationMinutes);
+
+            // Format top suggestions
+            const topSlots = commonSlots.slice(0, 5).map((slot) => {
+              const start = new Date(slot.start);
+              const end = new Date(slot.end);
+              const duration = (end.getTime() - start.getTime()) / (1000 * 60);
+
+              return {
+                start: slot.start,
+                end: slot.end,
+                availableFor: slot.availableUsers,
+                unavailableFor: slot.unavailableUsers,
+                durationMinutes: Math.floor(duration),
+                confidence:
+                  slot.availableUsers.length === resolvedUserIds.length
+                    ? "high"
+                    : "medium",
+              };
+            });
+
+            const result = {
+              suggestedSlots: topSlots,
+              searchedUsers: resolvedUserIds,
+              duration: durationMinutes,
+              totalSlotsFound: commonSlots.length,
+            };
+
+            console.log("=== TOOL RESULT: findOverlap ===");
+            console.log(JSON.stringify(result, null, 2));
+
+            return result;
+          } catch (error) {
+            console.error("Error finding overlap:", error);
+            const errorResult = {
+              suggestedSlots: [],
+              searchedUsers: userIds,
+              error: error instanceof Error ? error.message : "Unknown error",
+            };
+            console.log("=== TOOL ERROR: findOverlap ===");
+            console.log(JSON.stringify(errorResult, null, 2));
+            return errorResult;
+          }
+        },
       }),
     },
   });

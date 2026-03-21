@@ -1,27 +1,80 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { AddFriendsModal } from "@/components/events/AddFriendsModal";
-import { MOCK_FRIENDS } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
-import type { Friend } from "@/lib/mock-data";
+
+type Friend = {
+  id: string;       // Document ID in network collection
+  userId: string;   // memberUserId
+  name: string;
+  email: string;
+  status: "accepted" | "pending";
+};
 
 export default function NetworkPage() {
-  const [friends, setFriends] = useState<Friend[]>(MOCK_FRIENDS);
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.user) {
+          setCurrentUser(data.user);
+        } else {
+          setLoading(false);
+        }
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    
+    setLoading(true);
+    Promise.all([
+      fetch(`/api/network?userId=${currentUser.uid}&status=accepted`).then(res => res.json()),
+      fetch(`/api/network?userId=${currentUser.uid}&status=pending`).then(res => res.json())
+    ]).then(([accepted, pending]) => {
+      const all: Friend[] = [
+        ...(accepted.connections || []).map((c: any) => ({
+           id: c.id,
+           userId: c.memberUserId,
+           name: c.memberName,
+           email: c.memberEmail,
+           status: "accepted" as const
+        })),
+        ...(pending.connections || []).map((c: any) => ({
+           id: c.id,
+           userId: c.memberUserId,
+           name: c.memberName,
+           email: c.memberEmail,
+           status: "pending" as const
+        }))
+      ];
+      setFriends(all);
+    }).finally(() => {
+      setLoading(false);
+    });
+  }, [currentUser]);
 
   const acceptedFriends = friends.filter((f) => f.status === "accepted");
   const pendingFriends = friends.filter((f) => f.status === "pending");
 
   function handleRemoveFriend(id: string) {
+    // Ideally this would DELETE /api/network?id=... but keeping it local for now if API isn't built
     setFriends(friends.filter((f) => f.id !== id));
   }
 
   function handleAcceptFriend(id: string) {
+    // Ideally PATCH /api/network
     setFriends(
       friends.map((f) =>
         f.id === id ? { ...f, status: "accepted" as const } : f
@@ -33,14 +86,36 @@ export default function NetworkPage() {
     setFriends(friends.filter((f) => f.id !== id));
   }
 
-  function handleInviteFriends(emails: string[]) {
-    const newFriends: Friend[] = emails.map((email, i) => ({
-      id: `f${friends.length + i}`,
-      name: email.split("@")[0],
-      email,
-      status: "pending",
-    }));
-    setFriends([...friends, ...newFriends]);
+  function handleInviteFriends(selectedUsers: any[]) {
+    if (!currentUser) return;
+
+    // Filter out users already in network
+    const newUsers = selectedUsers.filter(u => 
+      !friends.some(f => f.userId === (u.id || u.uid))
+    );
+
+    Promise.all(newUsers.map(user => 
+      fetch("/api/network", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ownerUserId: currentUser.uid,
+          memberUserId: user.id || user.uid,
+          memberName: user.name || user.displayName || "Unknown User",
+          memberEmail: user.email || "",
+          relationStatus: "pending"
+        })
+      }).then(res => res.json())
+    )).then((results) => {
+       const newFriends: Friend[] = results.map(res => ({
+         id: res.id,
+         userId: res.memberUserId,
+         name: res.memberName,
+         email: res.memberEmail,
+         status: "pending"
+       }));
+       setFriends([...friends, ...newFriends]);
+    });
   }
 
   return (
@@ -61,15 +136,20 @@ export default function NetworkPage() {
           variant="primary"
           size="sm"
           onClick={() => setModalOpen(true)}
+          disabled={!currentUser}
         >
-          Add friend
+          Add to network
         </Button>
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-2xl px-6 py-8">
-          {friends.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-12 text-[var(--text-secondary)]">Loading network...</div>
+          ) : !currentUser ? (
+            <div className="text-center py-12 text-[var(--text-secondary)]">Please sign in to view your network.</div>
+          ) : friends.length === 0 ? (
             <EmptyState onAddClick={() => setModalOpen(true)} />
           ) : (
             <div className="flex flex-col gap-6">
@@ -147,7 +227,7 @@ export default function NetworkPage() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onInvite={handleInviteFriends}
-        title="Add friends to your network"
+        title="Search users to add"
       />
     </div>
   );
@@ -214,11 +294,11 @@ function EmptyState({ onAddClick }: { onAddClick: () => void }) {
           No friends yet
         </h2>
         <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          Start building your network by adding friends
+          Search for users to add them to your network
         </p>
       </div>
       <Button variant="primary" onClick={onAddClick}>
-        Add your first friend
+        Add someone
       </Button>
     </div>
   );

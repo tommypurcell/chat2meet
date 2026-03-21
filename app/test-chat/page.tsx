@@ -26,11 +26,6 @@ import {
   saveSchedulingParticipants,
 } from "@/lib/scheduling-storage";
 import type { SchedulingParticipant } from "@/lib/types";
-import {
-  formatCalendarEventsForPrompt,
-  formatCalendarLoadErrorPrompt,
-  formatNoCalendarConnectedPrompt,
-} from "@/lib/format-calendar-for-prompt";
 import { cn } from "@/lib/utils";
 import {
   CHAT_SUGGESTIONS,
@@ -213,81 +208,12 @@ export default function Home() {
   const currentUserIdRef = useRef<string | undefined>(undefined);
   currentUserIdRef.current = user?.uid;
 
-  /** Preformatted markdown for /api/chat — same payload as GET /api/calendar/google/events, sent as `calendarContext`. */
-  const [calendarPromptForChat, setCalendarPromptForChat] = useState("");
-  const calendarPromptForChatRef = useRef("");
-  calendarPromptForChatRef.current = calendarPromptForChat;
 
-  useEffect(() => {
-    if (!user?.uid) {
-      setCalendarPromptForChat("");
-      return;
-    }
-
-    const uid = user.uid;
-
-    const fetchCalendarData = async () => {
-      try {
-        const today = new Date();
-        const nextWeek = new Date(today);
-        nextWeek.setDate(today.getDate() + 7);
-        const rangeLabel = `${today.toISOString().split("T")[0]} → ${nextWeek.toISOString().split("T")[0]}`;
-
-        const response = await fetch(
-          `/api/calendar/google/events?userId=${uid}&timeMin=${today.toISOString()}&timeMax=${nextWeek.toISOString()}&maxResults=100`,
-        );
-
-        const data = (await response.json()) as {
-          success?: boolean;
-          events?: Array<{
-            summary?: string;
-            start?: string | null;
-            end?: string | null;
-          }>;
-          error?: string;
-        };
-
-        if (!response.ok || data.error) {
-          const msg = data.error || response.statusText;
-          const noAccount =
-            response.status === 404 ||
-            (typeof msg === "string" && msg.includes("No active Google Calendar"));
-          setCalendarPromptForChat(
-            noAccount
-              ? formatNoCalendarConnectedPrompt(uid)
-              : formatCalendarLoadErrorPrompt(msg || "Request failed"),
-          );
-          return;
-        }
-
-        if (data.success && Array.isArray(data.events)) {
-          setCalendarPromptForChat(
-            formatCalendarEventsForPrompt(
-              uid,
-              data.events,
-              `next 7 days (${rangeLabel})`,
-              user?.timezone ?? "America/Los_Angeles",
-            ),
-          );
-        } else {
-          setCalendarPromptForChat("");
-        }
-      } catch (e) {
-        setCalendarPromptForChat(
-          formatCalendarLoadErrorPrompt(
-            e instanceof Error ? e.message : "fetch failed",
-          ),
-        );
-      }
-    };
-
-    fetchCalendarData();
-  }, [user]);
 
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
-        api: "/api/chat",
+        api: "/api/test-chat",
         credentials: "include",
         prepareSendMessagesRequest: async (opts) => ({
           body: {
@@ -298,7 +224,6 @@ export default function Home() {
             messageId: opts.messageId,
             schedulingParticipants: schedulingParticipantsRef.current,
             currentUserId: currentUserIdRef.current ?? undefined,
-            calendarContext: calendarPromptForChatRef.current || undefined,
           },
         }),
       }),

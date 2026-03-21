@@ -1,10 +1,46 @@
 "use client";
 
+import type { UIMessage } from "ai";
+import { ChatMessage } from "@/components/chat/ChatMessage";
 import { EventCard } from "@/components/events/EventCard";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { CHAT_SUGGESTIONS, SAMPLE_SCHEDULING_EVENTS } from "@/lib/mock-data";
 
-export function ChatWindow() {
+type ChatWindowProps = {
+  messages: UIMessage[];
+  onSuggestionClick: (text: string) => void;
+};
+
+export function ChatWindow({ messages, onSuggestionClick }: ChatWindowProps) {
+  if (messages.length === 0) {
+    return <WelcomeView onSuggestionClick={onSuggestionClick} />;
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-32 pt-4">
+        {messages.map((message) => (
+          <ChatMessage key={message.id} role={message.role as "user" | "assistant"}>
+            {message.parts.map((part, i) => {
+              if (part.type === "text") {
+                return <span key={i} className="whitespace-pre-wrap">{part.text}</span>;
+              }
+              if (part.type === "step-start") return null;
+              // Tool call in progress
+              return (
+                <span key={i} className="italic text-[var(--chat-muted)] text-sm">
+                  Using tool…
+                </span>
+              );
+            })}
+          </ChatMessage>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function WelcomeView({ onSuggestionClick }: { onSuggestionClick: (text: string) => void }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-4 pb-32 pt-8 md:px-8">
@@ -25,8 +61,12 @@ export function ChatWindow() {
               role="button"
               tabIndex={0}
               className="cursor-pointer p-4 text-left transition hover:bg-[var(--chat-surface-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-accent)]"
+              onClick={() => onSuggestionClick(s.body)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") e.preventDefault();
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onSuggestionClick(s.body);
+                }
               }}
             >
               <CardHeader className="p-0">

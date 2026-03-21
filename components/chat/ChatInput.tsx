@@ -3,12 +3,18 @@
 import { useState, type FormEvent, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/Button";
 
-export function ChatInput() {
+type ChatInputProps = {
+  onSend: (text: string) => void;
+  isLoading: boolean;
+};
+
+export function ChatInput({ onSend, isLoading }: ChatInputProps) {
   const [value, setValue] = useState("");
 
   function submit() {
     const trimmed = value.trim();
-    if (!trimmed) return;
+    if (!trimmed || isLoading) return;
+    onSend(trimmed);
     setValue("");
   }
 
@@ -53,7 +59,7 @@ export function ChatInput() {
               type="submit"
               variant="accent"
               size="icon"
-              disabled={!value.trim()}
+              disabled={!value.trim() || isLoading}
               aria-label="Send message"
             >
               <SendIcon />

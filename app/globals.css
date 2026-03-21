@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+:root {
+  --background: #212121;
+  --foreground: #ececec;
+  --chat-bg: #212121;
+  --chat-sidebar: #171717;
+  --chat-border: rgba(255, 255, 255, 0.1);
+  --chat-fg: #ececec;
+  --chat-fg-muted: #c5c5c5;
+  --chat-muted: #8e8e8e;
+  --chat-surface: #2f2f2f;
+  --chat-surface-hover: #3a3a3a;
+  --chat-input-bg: #2f2f2f;
+  --chat-accent: #10a37f;
+  --chat-accent-soft: rgba(16, 163, 127, 0.18);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}

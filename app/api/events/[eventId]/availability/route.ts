@@ -1,4 +1,3 @@
-import type { Query } from "firebase-admin/firestore";
 import { NextRequest } from "next/server";
 import {
   collection,
@@ -60,7 +59,7 @@ export async function GET(
     const eventResult = await getDocOrError(eventRef);
     if (eventResult.error) return eventResult.error;
 
-    let query: Query = eventRef.collection("availability");
+    let query: FirebaseFirestore.Query = eventRef.collection("availability");
     if (source) {
       query = query.where("source", "==", source);
     }

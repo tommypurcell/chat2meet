@@ -10,12 +10,13 @@ const ROUTES = [
   { href: "/onboarding", label: "1. Sign Up" },
   { href: "/onboarding/preferences", label: "2. Preferences" },
   { href: "/", label: "3. Home" },
-  { href: "/calendar", label: "4. Calendar" },
-  { href: "/settings", label: "5. Settings" },
-  { href: "/test-calendar", label: "6. Test Calendar" },
-  { href: "/invite/demo", label: "7. Invite" },
-  { href: "/join/demo", label: "8. Join Gate" },
-  { href: "/event/demo", label: "9. Event Detail" },
+  { href: "/network", label: "4. Network" },
+  { href: "/calendar", label: "5. Calendar" },
+  { href: "/settings", label: "6. Settings" },
+  { href: "/test-calendar", label: "7. Test Calendar" },
+  { href: "/invite/demo", label: "8. Invite" },
+  { href: "/join/demo", label: "9. Join Gate" },
+  { href: "/event/demo", label: "10. Event Detail" },
 ];
 
 export function DevNav() {
@@ -24,36 +25,56 @@ export function DevNav() {
   const { theme, toggle } = useTheme();
 
   return (
-    <div className="fixed bottom-4 right-4 z-[100]">
+    <div className="fixed top-4 left-4 z-[100]">
       {open && (
-        <div className="mb-2 flex flex-col gap-1 rounded-2xl border border-[var(--border)] bg-[var(--bg-sheet)] p-2 shadow-[var(--shadow-elevated)] backdrop-blur-xl">
-          <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
-            Screens
-          </p>
+        <>
           <button
             type="button"
-            onClick={toggle}
-            className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-[13px] font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors cursor-pointer"
-          >
-            {theme === "dark" ? "☀ Light" : "● Dark"}
-          </button>
-          <div className="mx-1 h-px bg-[var(--divider)]" />
-          {ROUTES.map((r) => (
-            <Link
-              key={r.href}
-              href={r.href}
-              onClick={() => setOpen(false)}
-              className={cn(
-                "rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors",
-                pathname === r.href
-                  ? "bg-[var(--accent-primary)] text-white"
-                  : "text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]",
-              )}
+            className="fixed inset-0 z-40"
+            aria-label="Close menu"
+            onClick={() => setOpen(false)}
+          />
+          <div className="absolute top-12 left-0 z-50 flex flex-col gap-1 rounded-xl border border-[var(--border)] bg-[var(--bg-sheet)] p-2 shadow-[var(--shadow-elevated)] backdrop-blur-xl min-w-48">
+            <div className="flex items-center justify-between px-2 py-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
+                Screens
+              </p>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="rounded p-1 hover:bg-[var(--bg-tertiary)] transition-colors"
+                aria-label="Close"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={toggle}
+              className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-[13px] font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors cursor-pointer"
             >
-              {r.label}
-            </Link>
-          ))}
-        </div>
+              {theme === "dark" ? "☀ Light" : "● Dark"}
+            </button>
+            <div className="mx-1 h-px bg-[var(--divider)]" />
+            {ROUTES.map((r) => (
+              <Link
+                key={r.href}
+                href={r.href}
+                onClick={() => setOpen(false)}
+                className={cn(
+                  "rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors",
+                  pathname === r.href
+                    ? "bg-[var(--accent-primary)] text-white"
+                    : "text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]",
+                )}
+              >
+                {r.label}
+              </Link>
+            ))}
+          </div>
+        </>
       )}
       <button
         type="button"

@@ -1,4 +1,3 @@
-import type { Query } from "firebase-admin/firestore";
 import { NextRequest } from "next/server";
 import {
   collection,
@@ -73,7 +72,7 @@ export async function GET(
     const eventResult = await getDocOrError(eventRef);
     if (eventResult.error) return eventResult.error;
 
-    let query: Query = eventRef.collection("participants");
+    let query: FirebaseFirestore.Query = eventRef.collection("participants");
     if (role) {
       query = query.where("role", "==", role);
     }

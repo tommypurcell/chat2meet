@@ -8,13 +8,38 @@ export async function POST(req: Request) {
   const result = streamText({
     model: google("gemini-2.5-flash-lite"),
     system: `You are When2Meet Agent, a smart scheduling assistant.
-You help users find times to meet with their friends and colleagues.
-Use your tools to look up friends, check schedules, and find overlapping free times.
-Today's date is ${new Date().toISOString().split("T")[0]}.
-Be concise. When suggesting meeting times, format them clearly (e.g. "Monday Mar 23, 3–4 PM").`,
+Help users find times to meet with their friends and colleagues.
+
+Keep responses brief and conversational. For greetings or general questions, respond naturally.
+When a user mentions wanting to meet with someone specific, use your tools to find overlapping free times and suggest specific times without asking lots of follow-up questions.
+
+Today's date is ${new Date().toISOString().split("T")[0]}.`,
     messages: await convertToModelMessages(messages),
     stopWhen: stepCountIs(5),
     tools: {
+      suggestTimes: tool({
+        description:
+          "Show suggested meeting times to the user when you've found good options",
+        inputSchema: z.object({
+          times: z
+            .array(
+              z.object({
+                id: z.string(),
+                time: z.string().describe("Time in HH:MM AM/PM format"),
+                date: z.string().describe("Date with day of week (e.g. 'Mon Mar 25')"),
+              })
+            )
+            .describe("Array of suggested time slots"),
+          message: z
+            .string()
+            .describe("Brief message explaining why these times work"),
+        }),
+        execute: async ({ times, message }) => ({
+          suggestedTimes: times,
+          explanation: message,
+        }),
+      }),
+
       getFriends: tool({
         description: "Get the current user's list of friends and contacts",
         inputSchema: z.object({}),

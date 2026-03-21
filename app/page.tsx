@@ -89,6 +89,15 @@ function ChatContent({
   onCloseInvite: () => void;
   onSuggestionClick?: (text: string) => void;
 }) {
+  // Extract time slots from tool results in messages
+  const suggestedTimes = messages
+    .filter((msg) => msg.role === "assistant")
+    .flatMap((msg) => {
+      return msg.toolResults
+        ?.filter((result: any) => result.toolName === "suggestTimes")
+        .flatMap((result: any) => result.result?.suggestedTimes || []) || [];
+    });
+
   return (
     <div>
       {messages.length === 0 && !isLoading ? (
@@ -122,17 +131,19 @@ function ChatContent({
         ))
       )}
 
-      <div className="flex flex-wrap gap-2 px-4 py-2">
-        {SAMPLE_TIME_SLOTS.map((slot) => (
-          <TimeChip
-            key={slot.id}
-            time={slot.time}
-            date={slot.date}
-            selected={selectedSlot === slot.id}
-            onClick={() => onSelectSlot(slot.id)}
-          />
-        ))}
-      </div>
+      {suggestedTimes.length > 0 && (
+        <div className="flex flex-wrap gap-2 px-4 py-2">
+          {suggestedTimes.map((slot: any) => (
+            <TimeChip
+              key={slot.id}
+              time={slot.time}
+              date={slot.date}
+              selected={selectedSlot === slot.id}
+              onClick={() => onSelectSlot(slot.id)}
+            />
+          ))}
+        </div>
+      )}
 
       {selectedSlot && !showInvitePreview && (
         <ActionBubble

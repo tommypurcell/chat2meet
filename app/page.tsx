@@ -37,6 +37,8 @@ const ROUTES = [
   { href: "/event/demo", label: "9. Event Detail" },
 ];
 
+
+
 /* ── Main page ────────────────────────────────────────── */
 export default function Home() {
   const { theme, toggle } = useTheme();
@@ -52,7 +54,7 @@ export default function Home() {
   const [showInvitePreview, setShowInvitePreview] = useState(false);
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const [screensMenuOpen, setScreensMenuOpen] = useState(false);
-  const [showCalendarView, setShowCalendarView] = useState(true);
+  const [showCalendar, setShowCalendar] = useState(false);
 
   const visibleDates = MARCH_DATES.filter(
     (d) => d.day >= 16 && d.day <= 22,
@@ -139,7 +141,7 @@ export default function Home() {
                   </>
                 )}
               </div>
-              <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">When2Meet</h2>
+              <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Chat2meet</h2>
             </div>
             <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
                 {theme === "dark" ? (
@@ -167,9 +169,9 @@ export default function Home() {
 
           {/* Group list */}
           <div className="mt-3 flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-4">
-            <p className="px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.8px] text-[var(--text-tertiary)]">
-              Groups
-            </p>
+            <span className="truncate text-[15px] font-semibold tracking-[-0.24px] text-[var(--text-primary)]">
+            Chat2meet
+          </span>
             {MEETING_GROUPS.map((g) => (
               <button
                 key={g.id}
@@ -214,14 +216,18 @@ export default function Home() {
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-5 py-4">
             <h2 className="text-lg font-semibold">Chat</h2>
             <div className="flex items-center gap-2">
-              <Link href="/calendar">
-                <Button variant="ghost" size="lg" title="Calendar" className="p-2">
+                <Button 
+                  variant="ghost" 
+                  size="lg" 
+                  title="Calendar" 
+                  className={cn("p-2", showCalendar && "bg-[var(--bg-tertiary)] text-[var(--accent-primary)]")}
+                  onClick={() => setShowCalendar(!showCalendar)}
+                >
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
                     <rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.75" />
                     <path d="M3 9h18M8 2v4M16 2v4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
                   </svg>
                 </Button>
-              </Link>
               <Link href="/availability">
                 <Button variant="ghost" size="lg" title="Availability" className="p-2">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -292,6 +298,25 @@ export default function Home() {
             placeholder="Schedule a meeting..."
           />
         </div>
+
+        {/* ── Right column: Weekly Calendar ──────────────── */}
+        {showCalendar && (
+          <div className="flex w-[350px] shrink-0 flex-col border-l border-[var(--divider)] bg-[var(--bg-secondary)] animate-in slide-in-from-right duration-300">
+            <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-4">
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">My Calendar</h2>
+              <Button variant="ghost" size="icon" onClick={() => setShowCalendar(false)}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              </Button>
+            </div>
+            <div className="flex-1 overflow-hidden p-2">
+              <div className="rounded-xl border border-[var(--divider)] bg-[var(--bg-primary)] h-full overflow-hidden pt-4">
+                <AvailabilityGrid timePosition="right" />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ═══════════════════════════════════════════════════ */}
@@ -301,7 +326,7 @@ export default function Home() {
         {/* Left: groups */}
         <div className="flex w-[260px] shrink-0 flex-col border-r border-[var(--divider)] bg-[var(--bg-secondary)]">
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-4">
-            <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">When2Meet</h2>
+            <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Chat2meet</h2>
             <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
                 {theme === "dark" ? (
                   <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
@@ -404,7 +429,7 @@ export default function Home() {
       <div className="relative flex flex-1 flex-col md:hidden">
         {/* Nav */}
         <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-3">
-          <h1 className="text-lg font-bold text-[var(--text-primary)]">When2Meet</h1>
+          <h1 className="text-lg font-bold text-[var(--text-primary)]">Chat2meet</h1>
           <div className="flex items-center gap-1">
             <Link href="/network">
               <Button variant="ghost" size="icon" aria-label="Network">

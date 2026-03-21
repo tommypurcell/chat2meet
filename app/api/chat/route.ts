@@ -6,9 +6,16 @@ export async function POST(req: Request) {
   const { messages }: { messages: UIMessage[] } = await req.json();
 
   const result = streamText({
-    model: google("gemini-2.5-flash-lite"),
-    system: `You are When2Meet Agent, a smart scheduling assistant.
+    model: google("gemini-2.0-flash-lite-preview-02-05"),
+    system: `You are Chat2meet Agent, a smart scheduling assistant.
 Help users find times to meet with their friends and colleagues.
+
+If the user is in onboarding mode (based on context or first message), guide them through:
+1. Connecting Google Calendar
+2. Setting Public Preferences
+3. Setting Private Preferences
+
+Otherwise, focus on scheduling.
 
 On your first message, introduce yourself briefly. Then:
 - Keep responses brief and conversational
@@ -19,6 +26,13 @@ Today's date is ${new Date().toISOString().split("T")[0]}.`,
     messages: await convertToModelMessages(messages),
     stopWhen: stepCountIs(5),
     tools: {
+      completeOnboarding: tool({
+        description: "Mark onboarding as complete and update user data",
+        inputSchema: z.object({}),
+        execute: async () => {
+          return { success: true };
+        },
+      }),
       suggestTimes: tool({
         description:
           "Show suggested meeting times to the user when you've found good options",

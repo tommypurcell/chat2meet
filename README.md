@@ -1,6 +1,6 @@
-# When2Meet Agent
+# Chat2meet Agent
 
-Next.js app for scheduling with an **agent** instead of the classic When2Meet grid UI. The web app is a ChatGPT-style shell; data lives in **Firebase (Firestore)** and is exposed via **Route Handlers** under `app/api/`.
+Next.js app for scheduling with an **agent** instead of the classic grid UI. The web app is a ChatGPT-style shell; data lives in **Firebase (Firestore)** and is exposed via **Route Handlers** under `app/api/`.
 
 ## Quick start
 

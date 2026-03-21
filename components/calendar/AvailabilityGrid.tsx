@@ -22,7 +22,11 @@ const OTHERS_AVAILABILITY: Record<CellKey, number> = {
 
 const MAX_OTHERS = 3;
 
-export function AvailabilityGrid() {
+interface AvailabilityGridProps {
+  timePosition?: "left" | "right";
+}
+
+export function AvailabilityGrid({ timePosition = "left" }: AvailabilityGridProps) {
   const [selected, setSelected] = useState<Set<CellKey>>(new Set());
   const [painting, setPainting] = useState(false);
   const paintModeRef = useRef<boolean>(true); // true = adding, false = removing
@@ -115,49 +119,60 @@ export function AvailabilityGrid() {
     return "transparent";
   }
 
+  const TimeColumn = ({ time, isHour }: { time: string, isHour: boolean }) => (
+    <td
+      className={cn(
+        "sticky z-10 bg-[var(--bg-primary)] text-[11px] font-medium text-[var(--text-tertiary)]",
+        timePosition === "left" ? "left-0 pr-2 text-right" : "right-0 pl-2 text-left",
+        isHour ? "pt-1" : "pt-0",
+      )}
+      style={{ width: 50, height: 28 }}
+    >
+      {isHour ? time : ""}
+    </td>
+  );
+
   return (
     <div className="flex h-full flex-col">
       {/* Legend */}
-      <div className="flex items-center gap-4 px-4 pb-3">
+      <div className="flex items-center gap-3 px-3 pb-3">
         <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded-sm bg-[var(--accent-primary)]" />
-          <span className="text-[11px] text-[var(--text-tertiary)]">You</span>
+          <div className="h-2.5 w-2.5 rounded-sm bg-[var(--accent-primary)]" />
+          <span className="text-[10px] text-[var(--text-tertiary)]">Me</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded-sm" style={{ background: "rgba(0,255,163,0.2)" }} />
-          <span className="text-[11px] text-[var(--text-tertiary)]">Others</span>
+          <div className="h-2.5 w-2.5 rounded-sm" style={{ background: "rgba(0,255,163,0.3)" }} />
+          <span className="text-[10px] text-[var(--text-tertiary)]">Busy</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded-sm" style={{ background: "rgba(0,255,163,0.8)" }} />
-          <span className="text-[11px] text-[var(--text-tertiary)]">Overlap</span>
-        </div>
-        <span className="ml-auto text-[11px] text-[var(--text-tertiary)]">
-          {selected.size} slots selected
+        <span className="ml-auto text-[10px] text-[var(--text-tertiary)]">
+          MARCH 24–28
         </span>
       </div>
 
       {/* Grid */}
       <div
         ref={gridRef}
-        className="flex-1 overflow-auto select-none"
+        className="flex-1 overflow-auto select-none custom-scrollbar"
         onMouseMove={onPointerMove}
         onMouseUp={onPointerUp}
         onMouseLeave={onPointerUp}
         onTouchMove={onPointerMove}
         onTouchEnd={onPointerUp}
       >
-        <table className="w-full border-collapse" style={{ minWidth: DAYS.length * 80 + 60 }}>
+        <table className="w-full border-collapse" style={{ minWidth: DAYS.length * 50 + 50 }}>
           <thead>
             <tr>
-              <th className="sticky left-0 z-10 w-[60px] bg-[var(--bg-primary)] p-0" />
+              {timePosition === "left" && <th className="sticky left-0 z-10 w-[50px] bg-[var(--bg-primary)] p-0" />}
               {DAYS.map((day) => (
                 <th
                   key={day}
-                  className="border-b border-[var(--divider)] px-1 py-2 text-center text-xs font-semibold text-[var(--text-secondary)]"
+                  className="border-b border-[var(--divider)] px-1 py-1.5 text-center text-[10px] font-semibold text-[var(--text-tertiary)]"
                 >
-                  {day}
+                  {day.split(" ")[0]}
+                  <div className="text-[12px] text-[var(--text-primary)]">{day.split(" ")[1]}</div>
                 </th>
               ))}
+              {timePosition === "right" && <th className="sticky right-0 z-10 w-[50px] bg-[var(--bg-primary)] p-0" />}
             </tr>
           </thead>
           <tbody>
@@ -165,15 +180,7 @@ export function AvailabilityGrid() {
               const isHour = time.endsWith(":00");
               return (
                 <tr key={time}>
-                  <td
-                    className={cn(
-                      "sticky left-0 z-10 bg-[var(--bg-primary)] pr-2 text-right text-[11px] font-medium text-[var(--text-tertiary)]",
-                      isHour ? "pt-1" : "pt-0",
-                    )}
-                    style={{ width: 60, height: 28 }}
-                  >
-                    {isHour ? time : ""}
-                  </td>
+                  {timePosition === "left" && <TimeColumn time={time} isHour={isHour} />}
                   {DAYS.map((_, dayIdx) => {
                     const key: CellKey = `${dayIdx}-${slotIdx}`;
                     const bg = getHeatColor(dayIdx, slotIdx);
@@ -204,12 +211,26 @@ export function AvailabilityGrid() {
                       />
                     );
                   })}
+                  {timePosition === "right" && <TimeColumn time={time} isHour={isHour} />}
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
+      <style jsx>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+          height: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: var(--divider);
+          border-radius: 10px;
+        }
+      `}</style>
     </div>
   );
 }

@@ -12,8 +12,7 @@ import { useAuth } from "@/lib/auth-context";
 export default function OnboardingPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const { messages, append, status } = useChat({
-    api: "/api/chat/onboarding",
+  const { messages, sendMessage, status } = useChat({
     onToolCall({ toolCall }) {
       if (toolCall.toolName === "completeOnboarding") {
         setTimeout(() => router.push("/"), 2000);
@@ -33,8 +32,22 @@ export default function OnboardingPage() {
   }, []);
 
   function handleSendMessage(text: string) {
-    append({ role: "user", content: text });
+    sendMessage({ text });
   }
+
+  // Helper to extract text from a message
+  const getMessageText = (msg: any) => {
+    if (!msg.parts) return msg.content || "";
+    return msg.parts
+      .filter((p: any) => p.type === "text")
+      .map((p: any) => p.text)
+      .join(" ");
+  };
+
+  const hasCalendarOption = messages.some(m => {
+    const text = getMessageText(m).toLowerCase();
+    return m.role === "assistant" && text.includes("calendar") && !text.includes("preferences");
+  });
 
   return (
     <div className="flex h-[100dvh] w-full flex-col bg-[var(--bg-primary)] text-[var(--text-primary)]">
@@ -48,7 +61,7 @@ export default function OnboardingPage() {
               </svg>
             </Button>
           </Link>
-          <h1 className="text-xl font-bold">Welcome, {user?.displayName || "new user"}!</h1>
+          <h1 className="text-xl font-bold">Welcome to Chat2meet, {user?.displayName || "new user"}!</h1>
         </div>
       </div>
 
@@ -81,7 +94,7 @@ export default function OnboardingPage() {
           />
 
           {/* Special UI for Calendar Connection */}
-          {messages.some(m => m.role === "assistant" && m.content.toLowerCase().includes("calendar") && !m.content.toLowerCase().includes("preferences")) && (
+          {hasCalendarOption && (
             <div className="mt-4 px-4 pb-4">
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-tertiary)] p-6 text-center">
                 <h3 className="font-semibold mb-2">Google Calendar</h3>

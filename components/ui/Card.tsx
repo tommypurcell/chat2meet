@@ -5,7 +5,7 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
-        "rounded-xl border border-[var(--chat-border)] bg-[var(--chat-surface)] text-[var(--chat-fg)] shadow-[0_1px_0_rgba(255,255,255,0.04)_inset]",
+        "rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-primary)] shadow-[var(--shadow-card)]",
         className,
       )}
       {...props}
@@ -22,7 +22,7 @@ export function CardHeader({ className, ...props }: HTMLAttributes<HTMLDivElemen
 export function CardTitle({ className, ...props }: HTMLAttributes<HTMLHeadingElement>) {
   return (
     <h3
-      className={cn("text-sm font-semibold leading-none tracking-tight", className)}
+      className={cn("text-[15px] font-semibold leading-tight tracking-[-0.24px]", className)}
       {...props}
     />
   );
@@ -30,7 +30,7 @@ export function CardTitle({ className, ...props }: HTMLAttributes<HTMLHeadingEle
 
 export function CardDescription({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
   return (
-    <p className={cn("text-xs text-[var(--chat-muted)]", className)} {...props} />
+    <p className={cn("text-[13px] text-[var(--text-tertiary)] leading-[1.38]", className)} {...props} />
   );
 }
 
@@ -41,7 +41,7 @@ export function CardContent({ className, ...props }: HTMLAttributes<HTMLDivEleme
 export function CardFooter({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("flex items-center gap-2 border-t border-[var(--chat-border)] p-4", className)}
+      className={cn("flex items-center gap-2 border-t border-[var(--divider)] p-4", className)}
       {...props}
     />
   );

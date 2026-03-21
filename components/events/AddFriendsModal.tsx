@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useId, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
@@ -54,14 +52,14 @@ export function AddFriendsModal({
         aria-modal="true"
         aria-labelledby={labelId}
         className={cn(
-          "relative z-10 w-full max-w-md rounded-2xl border border-[var(--chat-border)]",
-          "bg-[var(--chat-input-bg)] p-4 shadow-xl",
+          "relative z-10 w-full max-w-md rounded-2xl border border-[var(--border)]",
+          "bg-[var(--bg-secondary)] p-4 shadow-[var(--shadow-elevated)]",
         )}
       >
-        <h2 id={labelId} className="text-base font-semibold text-[var(--chat-fg)]">
+        <h2 id={labelId} className="text-base font-semibold text-[var(--text-primary)]">
           {title}
         </h2>
-        <p className="mt-1 text-xs text-[var(--chat-muted)]">
+        <p className="mt-1 text-[13px] text-[var(--text-tertiary)]">
           Paste emails separated by commas, semicolons, or new lines.
         </p>
         <textarea
@@ -70,15 +68,15 @@ export function AddFriendsModal({
           rows={4}
           placeholder="alex@company.com, sam@school.edu"
           className={cn(
-            "mt-3 w-full resize-y rounded-xl border border-[var(--chat-border)] bg-[var(--chat-bg)]",
-            "px-3 py-2 text-sm text-[var(--chat-fg)] placeholder:text-[var(--chat-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--chat-accent)]/40",
+            "mt-3 w-full resize-y rounded-xl border border-[var(--input-border)] bg-[var(--input-bg)]",
+            "px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--input-placeholder)] focus:outline-none focus:border-[var(--border-focused)]",
           )}
         />
         <div className="mt-4 flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="button" variant="accent" onClick={submit}>
+          <Button type="button" variant="primary" onClick={submit}>
             Send invites
           </Button>
         </div>

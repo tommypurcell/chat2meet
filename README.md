@@ -1,73 +1,61 @@
-# 🚀 Chat2meet: Scheduling, Reimagined
-> **The Series A Pitch Deck** — *Solving the $500B Meeting Negotiation Problem.*
+# 🚀 Chat2meet: KILL THE GRID.
+### *Scheduling meetings isn't a job. It's a conversation.*
 
 ---
 
-## 🛑 Slide 1: The Problem
-### "Scheduling is where productivity goes to die."
-Traditional tools like When2Meet or static calendars rely on a **"Grid of Death"**—a manual, high-friction process of clicking boxes and cross-referencing tabs. 
-- **Friction**: Users hate filling out grids.
-- **Opacity**: You can't explain *why* you're busy to a grid.
-- **Static**: Typical tools don't know about your nuances (e.g., "Never on Mondays").
+## 💀 The Grid is Dead.
+Stop clicking boxes. Stop checking your tabs. Stop the "Does Tuesday work?" back-and-forth.
+
+We're in the age of Agentic AI. Why are we still manually filling out 1990s-style availability grids? **Chat2meet** is the eviction notice for the traditional scheduling "negotiation." 
 
 ---
 
-## 💡 Slide 2: The Solution
-### **Chat2meet: The World's First Agentic Scheduling Platform.**
-We've replaced the grid with an **Intelligent Agent** that lives where you do: in the chat. 
-- **Conversational**: "Find a time for coffee with Sarah next week."
-- **Context-Aware**: Knows your Google Calendar, your preferences, and your "secret" rules.
-- **Frictionless**: Zero-setup onboarding via natural language.
+## 🔥 The New Reality: Conversation-First
+Imagine a world where you just **talk** to your calendar. 
+> *"Hey, find 30 mins for me and the dev team next week. I prefer mornings, but don't tell them I'm actually free all day Friday—keep that for my deep work."*
+
+Chat2meet doesn't just "schedule." It **understands.** 
 
 ---
 
-## 🛠 Slide 3: The Product (Current MVP)
-### **The 3-Column Powerhouse**
-1.  **The Context (Left)**: Instantly access cross-functional meeting groups (Pickleball crew, Design Review, 1:1s).
-2.  **The Agent (Center)**: A Gemini 2.0-powered assistant that fetches schedules, finds overlaps, and suggests times.
-3.  **The Source of Truth (Right)**: A live-synced, persistent **Google Calendar Sidebar** that updates as you chat.
+## ⚡️ The 3-Column Powerhouse
+We built the most efficient scheduling cockpit ever designed.
+- **LEFT: The Context.** Your tribes, your crews, your colleagues. All in one place.
+- **CENTER: The Intelligence.** A Gemini 2.0-powered Agent that fetches schedules, checks overlaps, and proposes the *perfect* time instantly.
+- **RIGHT: The Proof.** A live-synced, persistent Google Calendar sidebar that updates in real-time as you chat. 
 
 ---
 
-## 🧠 Slide 4: Our Unfair Advantage
-### **The Private Preference Engine**
-Traditional tools are public. Chat2meet is **Private**.
-- **The Grid 2.0**: Select your "Preferred slots" on our interactive grid.
-- **Agent Memory**: These slots are injected directly into the Agent's private prompt. 
-- **Secret Rules**: "i'll never go to a meeting with Daniel"—Your agent knows, but Daniel doesn't.
+## 🦄 The Private Memory Advantage
+### **Scheduling with Nuance.**
+Everyone else shows a public calendar. We give you a **Private Brain.**
+- **The Ghost Grid**: Select your "soft" availability on our interactive grid.
+- **Persistent Memory**: Your choices are saved to Firestore and fed *only* to your Agent.
+- **Invisible Rules**: Your Agent knows your private preferences (e.g., "I'm never meeting before 10 AM") even if you haven't said it recently. It keeps your secrets while finding the slots.
 
 ---
 
-## 🔗 Slide 5: Deep Integration
-### **Google Calendar API Native**
-We don't just "import" calendars; we live in them.
-- **Real-time Sync**: Fetch busy blocks instantly.
-- **Persistent Selection**: Your chosen availability is saved to Firestore and synced across sessions.
-- **Auto-Update**: As you book meetings, the Agent adjusts its logic in real-time.
+## 🛠 Built for the $500B Meeting Economy
+The stack that powers the future of work:
+- **Brain**: Vercel AI SDK + Google Gemini 2.0.
+- **Nervous System**: Next.js 15 (Edge-native).
+- **Memory**: Firebase (Real-time Firestore + Admin Auth).
+- **Connectivity**: Native Google Calendar API Integration.
+- **Design**: Premium, state-of-the-art Glassmorphism—because tools this powerful should look this good.
 
 ---
 
-## 📈 Slide 6: The Vision
-### **From "Finding Time" to "Finding Value"**
-Chat2meet isn't just a scheduler; it's a **Meeting Orchestrator**. 
-- **Phase 1**: Solve the "When". (COMPLETED ✅)
-- **Phase 2**: Solve the "Who" (Network effects, automated invites). (IN PROGRESS ⏳)
-- **Phase 3**: Solve the "Why" (Automated agendas, AI-prep).
+## 🚀 The Mission: Zero-Friction Scheduling.
+We've automated the onboarding. We've automated the sync. We've automated the overlap detection. 
+
+**Next step? Total world scheduling domination.**
 
 ---
 
-## 🛠 Tech Stack (The "Engine Room")
-- **Frontend**: Next.js 15 (App Router), Tailwind CSS.
-- **Intelligence**: Vercel AI SDK, Gemini 2.0 Flash Lite.
-- **Infrastructure**: Firebase (Auth, Firestore), Google Calendar API.
-- **Design**: Premium "Glassmorphism" UI with dark-mode native aesthetics.
-
----
-
-## 🏁 Get Started
+### **Launch the Future.**
 ```bash
 npm install
 npm run dev
 ```
 
-**Chat2meet** — *Schedule meetings through chat. No grid required.*
+**Chat2meet** — *Stop Grid-ing. Start Meeting.*

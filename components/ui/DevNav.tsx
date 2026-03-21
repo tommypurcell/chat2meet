@@ -11,9 +11,12 @@ const ROUTES = [
   { href: "/onboarding/preferences", label: "2. Preferences" },
   { href: "/", label: "3. Home" },
   { href: "/network", label: "4. Network" },
-  { href: "/invite/demo", label: "7. Invite" },
-  { href: "/join/demo", label: "8. Join Gate" },
-  { href: "/event/demo", label: "9. Event Detail" },
+  { href: "/calendar", label: "5. Calendar" },
+  { href: "/settings", label: "6. Settings" },
+  { href: "/test-calendar", label: "7. Test Calendar" },
+  { href: "/invite/demo", label: "8. Invite" },
+  { href: "/join/demo", label: "9. Join Gate" },
+  { href: "/event/demo", label: "10. Event Detail" },
 ];
 
 export function DevNav() {

@@ -44,7 +44,7 @@ export default function JoinPage({
         <CardContent className="space-y-5 px-6 py-6">
           <div className="text-center">
             <h1 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
-              Join When2Meet to respond
+              Join Chat 2 Meet to respond
             </h1>
             <p className="mt-1 text-sm text-[var(--text-tertiary)]">
               Create an account to accept or propose a new time

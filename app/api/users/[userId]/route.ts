@@ -7,6 +7,7 @@ import {
   errorResponse,
   successResponse,
 } from "@/lib/api-helpers";
+import { getSessionUserId } from "@/lib/auth-session";
 
 // GET /api/users/[userId] - Get a single user
 export async function GET(
@@ -15,6 +16,10 @@ export async function GET(
 ) {
   try {
     const { userId } = await params;
+    const sessionUid = await getSessionUserId();
+    if (!sessionUid || sessionUid !== userId) {
+      return errorResponse("Forbidden", 403);
+    }
     const result = await getDocOrError(collection("users").doc(userId));
     return result.error || successResponse(result.data);
   } catch (error) {
@@ -30,6 +35,10 @@ export async function PATCH(
 ) {
   try {
     const { userId } = await params;
+    const sessionUid = await getSessionUserId();
+    if (!sessionUid || sessionUid !== userId) {
+      return errorResponse("Forbidden", 403);
+    }
     const body = await request.json();
 
     const updates = extractFields(body, [
@@ -66,6 +75,10 @@ export async function DELETE(
 ) {
   try {
     const { userId } = await params;
+    const sessionUid = await getSessionUserId();
+    if (!sessionUid || sessionUid !== userId) {
+      return errorResponse("Forbidden", 403);
+    }
     const userRef = collection("users").doc(userId);
     const result = await getDocOrError(userRef);
     if (result.error) return result.error;

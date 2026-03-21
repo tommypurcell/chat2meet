@@ -26,7 +26,7 @@ export default function OnboardingPage() {
             <CalendarLogoIcon />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">
-            When2Meet
+            Chat 2 Meet
           </h1>
           <p className="mt-1 text-sm text-[var(--text-secondary)]">
             Find the perfect time to meet, effortlessly.

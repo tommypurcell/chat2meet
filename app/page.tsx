@@ -13,6 +13,7 @@ import { ActionBubble } from "@/components/chat/ActionBubble";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { ChatContent } from "@/components/chat/ChatContent";
 import { AvailabilityGrid } from "@/components/calendar/AvailabilityGrid";
+import { MyCalendarEvents } from "@/components/calendar/MyCalendarEvents";
 import { useTheme } from "@/lib/theme";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
@@ -55,6 +56,7 @@ export default function Home() {
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const [screensMenuOpen, setScreensMenuOpen] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
+  const [calendarTab, setCalendarTab] = useState<"events" | "availability">("events");
 
   const visibleDates = MARCH_DATES.filter(
     (d) => d.day >= 16 && d.day <= 22,
@@ -302,7 +304,7 @@ export default function Home() {
         {/* ── Right column: Weekly Calendar ──────────────── */}
         {showCalendar && (
           <div className="flex w-[350px] shrink-0 flex-col border-l border-[var(--divider)] bg-[var(--bg-secondary)] animate-in slide-in-from-right duration-300">
-            <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-4">
+            <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-3">
               <h2 className="text-sm font-semibold text-[var(--text-primary)]">My Calendar</h2>
               <Button variant="ghost" size="icon" onClick={() => setShowCalendar(false)}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
@@ -310,10 +312,43 @@ export default function Home() {
                 </svg>
               </Button>
             </div>
-            <div className="flex-1 overflow-hidden p-2">
-              <div className="rounded-xl border border-[var(--divider)] bg-[var(--bg-primary)] h-full overflow-hidden pt-4">
-                <AvailabilityGrid timePosition="right" />
-              </div>
+            {/* Tab toggle */}
+            <div className="flex shrink-0 border-b border-[var(--divider)] px-3">
+              <button
+                type="button"
+                onClick={() => setCalendarTab("events")}
+                className={cn(
+                  "flex-1 py-2 text-xs font-semibold text-center transition-colors border-b-2",
+                  calendarTab === "events"
+                    ? "border-[var(--accent-primary)] text-[var(--accent-primary)]"
+                    : "border-transparent text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]",
+                )}
+              >
+                Events
+              </button>
+              <button
+                type="button"
+                onClick={() => setCalendarTab("availability")}
+                className={cn(
+                  "flex-1 py-2 text-xs font-semibold text-center transition-colors border-b-2",
+                  calendarTab === "availability"
+                    ? "border-[var(--accent-primary)] text-[var(--accent-primary)]"
+                    : "border-transparent text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]",
+                )}
+              >
+                Availability
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {calendarTab === "events" ? (
+                <MyCalendarEvents />
+              ) : (
+                <div className="p-2">
+                  <div className="rounded-xl border border-[var(--divider)] bg-[var(--bg-primary)] h-full overflow-hidden pt-4">
+                    <AvailabilityGrid timePosition="right" />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

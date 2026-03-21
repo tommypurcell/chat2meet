@@ -11,8 +11,11 @@ import { Avatar } from "@/components/ui/Avatar";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ActionBubble } from "@/components/chat/ActionBubble";
 import { ChatInput } from "@/components/chat/ChatInput";
+import { ChatContent } from "@/components/chat/ChatContent";
 import { AvailabilityGrid } from "@/components/calendar/AvailabilityGrid";
 import { useTheme } from "@/lib/theme";
+import { useAuth } from "@/lib/auth-context";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   CHAT_SUGGESTIONS,
@@ -34,134 +37,11 @@ const ROUTES = [
   { href: "/event/demo", label: "9. Event Detail" },
 ];
 
-/* ── Invite preview card (Screen 6) ──────────────────── */
-function InvitePreview({ onClose }: { onClose: () => void }) {
-  return (
-    <div className="mx-4 mb-2 rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4 shadow-[var(--shadow-card)]">
-      <h3 className="text-base font-semibold text-[var(--text-primary)]">
-        {SAMPLE_INVITE.title}
-      </h3>
-      <p className="mt-1 text-sm text-[var(--text-secondary)]">
-        {SAMPLE_INVITE.date} &middot; {SAMPLE_INVITE.time}
-      </p>
-      {SAMPLE_INVITE.location && (
-        <p className="mt-0.5 text-sm text-[var(--text-tertiary)]">
-          {SAMPLE_INVITE.location}
-        </p>
-      )}
-      <div className="mt-3 flex items-center gap-2">
-        {SAMPLE_INVITE.attendees.map((name) => (
-          <div key={name} className="flex items-center gap-1.5">
-            <Avatar name={name} size={24} />
-            <span className="text-xs text-[var(--text-secondary)]">{name}</span>
-          </div>
-        ))}
-      </div>
-      <div className="mt-4 flex gap-2">
-        <Button variant="primary" size="sm" className="flex-1">
-          Send Invite
-        </Button>
-        <Button variant="secondary" size="sm" onClick={onClose}>
-          Edit
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-/* ── Chat content (messages + time slots + invite) ───── */
-function ChatContent({
-  messages,
-  isLoading,
-  selectedSlot,
-  showInvitePreview,
-  onSelectSlot,
-  onShowInvite,
-  onCloseInvite,
-  onSuggestionClick,
-}: {
-  messages: any[];
-  isLoading: boolean;
-  selectedSlot: string | null;
-  showInvitePreview: boolean;
-  onSelectSlot: (id: string) => void;
-  onShowInvite: () => void;
-  onCloseInvite: () => void;
-  onSuggestionClick?: (text: string) => void;
-}) {
-  // Extract time slots from tool results in messages
-  const suggestedTimes = messages
-    .filter((msg) => msg.role === "assistant")
-    .flatMap((msg) => {
-      return msg.toolResults
-        ?.filter((result: any) => result.toolName === "suggestTimes")
-        .flatMap((result: any) => result.result?.suggestedTimes || []) || [];
-    });
-
-  return (
-    <div>
-      {messages.length === 0 && !isLoading ? (
-        // Show empty state with suggestions (only if no messages AND not loading)
-        <div className="flex flex-col gap-2 px-4 py-4">
-          <p className="text-sm text-[var(--text-secondary)]">Start a conversation to find meeting times</p>
-          {CHAT_SUGGESTIONS.map((s) => (
-            <button
-              key={s.title}
-              type="button"
-              className="flex items-start gap-3 rounded-xl bg-[var(--bg-secondary)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-tertiary)]"
-              onClick={() => onSuggestionClick?.(s.body)}
-            >
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-[var(--text-primary)]">{s.title}</p>
-                <p className="text-xs text-[var(--text-tertiary)]">{s.body}</p>
-              </div>
-            </button>
-          ))}
-        </div>
-      ) : (
-        messages.map((msg) => (
-          <ChatMessage key={msg.id} role={msg.role}>
-            {msg.parts
-              ?.map((part: any, i: number) => {
-                if (part.type === "text") return <span key={i} className="whitespace-pre-wrap">{part.text}</span>;
-                return null;
-              })
-              .filter(Boolean) || msg.content}
-          </ChatMessage>
-        ))
-      )}
-
-      {suggestedTimes.length > 0 && (
-        <div className="flex flex-wrap gap-2 px-4 py-2">
-          {suggestedTimes.map((slot: any) => (
-            <TimeChip
-              key={slot.id}
-              time={slot.time}
-              date={slot.date}
-              selected={selectedSlot === slot.id}
-              onClick={() => onSelectSlot(slot.id)}
-            />
-          ))}
-        </div>
-      )}
-
-      {selectedSlot && !showInvitePreview && (
-        <ActionBubble
-          text="Create calendar invite"
-          onClick={onShowInvite}
-        />
-      )}
-
-      {showInvitePreview && (
-        <InvitePreview onClose={onCloseInvite} />
-      )}
-    </div>
-  );
-}
-
 /* ── Main page ────────────────────────────────────────── */
 export default function Home() {
   const { theme, toggle } = useTheme();
+  const { user, refresh } = useAuth();
+  const router = useRouter();
   const pathname = usePathname();
   const { messages, sendMessage, status } = useChat();
   const isLoading = status === "submitted" || status === "streaming";
@@ -180,6 +60,12 @@ export default function Home() {
 
   function handleSendMessage(text: string) {
     sendMessage({ parts: [{ type: "text", text }] });
+  }
+
+  async function handleSignOut() {
+    await fetch("/api/auth/signout", { method: "POST" });
+    await refresh();
+    router.push("/login");
   }
 
   return (
@@ -455,9 +341,18 @@ export default function Home() {
             ))}
           </div>
           <div className="border-t border-[var(--divider)] p-3">
-            <div className="flex items-center gap-2 px-2 py-1">
-              <Avatar name="Rae" size={28} />
-              <span className="text-sm font-medium text-[var(--text-primary)]">Rae</span>
+            <div className="flex items-center justify-between px-2 py-1">
+              <div className="flex items-center gap-2">
+                <Avatar name={user?.displayName || user?.email || "User"} size={28} />
+                <span className="text-sm font-medium text-[var(--text-primary)]">
+                  {user?.displayName || user?.email?.split("@")[0] || "User"}
+                </span>
+              </div>
+              <Button variant="ghost" size="icon" onClick={handleSignOut} aria-label="Sign out">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </Button>
             </div>
           </div>
         </div>

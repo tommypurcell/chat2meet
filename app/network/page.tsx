@@ -51,7 +51,7 @@ export default function NetworkPage() {
           <Link href="/">
             <Button variant="ghost" size="icon" aria-label="Back">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </Button>
           </Link>

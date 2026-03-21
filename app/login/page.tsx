@@ -33,12 +33,16 @@ function LoginInner() {
         body: JSON.stringify({ idToken }),
         credentials: "include",
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      const data = (await res.json().catch(() => ({}))) as { error?: string; isNew?: boolean };
       if (!res.ok) {
         throw new Error(data.error || "Could not create session");
       }
       await auth.signOut();
-      router.push(returnTo);
+      if (data.isNew) {
+        router.push("/onboarding");
+      } else {
+        router.push(returnTo);
+      }
       router.refresh();
     } catch (err) {
       const message =

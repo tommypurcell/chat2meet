@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const res = NextResponse.json({ ok: true, uid });
+    const res = NextResponse.json({ ok: true, uid, isNew: !existing.exists });
     res.cookies.set(FIREBASE_SESSION_COOKIE, sessionCookie, sessionCookieOptions());
     return res;
   } catch (error) {

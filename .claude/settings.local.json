@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(find /c/Users/qianj/OneDrive/Documents/PROJECTS/2026/when2meet-agent -not -path */node_modules/* -not -path */.next/* -not -path */.git/* -type f)",
-      "Bash(find /c/Users/qianj/OneDrive/Documents/PROJECTS/2026/when2meet-agent/node_modules/next/dist/docs -type f -name *.md)"
-    ]
-  }
-}

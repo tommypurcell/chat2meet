@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
 import { CalendarCell } from "@/components/ui/CalendarCell";
 import { TimeChip } from "@/components/ui/TimeChip";
@@ -22,6 +23,16 @@ import {
   WEEK_DAYS,
   MARCH_DATES,
 } from "@/lib/mock-data";
+
+const ROUTES = [
+  { href: "/onboarding", label: "1. Sign Up" },
+  { href: "/onboarding/preferences", label: "2. Preferences" },
+  { href: "/", label: "3. Home" },
+  { href: "/network", label: "4. Network" },
+  { href: "/invite/demo", label: "7. Invite" },
+  { href: "/join/demo", label: "8. Join Gate" },
+  { href: "/event/demo", label: "9. Event Detail" },
+];
 
 /* ── Invite preview card (Screen 6) ──────────────────── */
 function InvitePreview({ onClose }: { onClose: () => void }) {
@@ -140,6 +151,7 @@ function ChatContent({
 /* ── Main page ────────────────────────────────────────── */
 export default function Home() {
   const { theme, toggle } = useTheme();
+  const pathname = usePathname();
   const { messages, sendMessage, status } = useChat();
   const isLoading = status === "submitted" || status === "streaming";
   const chatStarted = messages.length > 0;
@@ -148,6 +160,7 @@ export default function Home() {
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [showInvitePreview, setShowInvitePreview] = useState(false);
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
+  const [screensMenuOpen, setScreensMenuOpen] = useState(false);
 
   const visibleDates = MARCH_DATES.filter(
     (d) => d.day >= 16 && d.day <= 22,
@@ -168,8 +181,68 @@ export default function Home() {
         {/* ── Left column: Meeting groups ──────────────── */}
         <div className="flex w-[260px] shrink-0 flex-col border-r border-[var(--divider)] bg-[var(--bg-secondary)]">
           {/* Header */}
-          <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-4">
-            <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">When2Meet</h2>
+          <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-4 relative">
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Button variant="ghost" size="icon" onClick={() => setScreensMenuOpen(!screensMenuOpen)} aria-label="Screens menu">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                    <rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="2" />
+                    <rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="2" />
+                    <rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="2" />
+                    <rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="2" />
+                  </svg>
+                </Button>
+                {screensMenuOpen && (
+                  <>
+                    <button
+                      type="button"
+                      className="fixed inset-0 z-40"
+                      onClick={() => setScreensMenuOpen(false)}
+                    />
+                    <div className="absolute top-full left-0 mt-1 z-50 flex flex-col gap-1 rounded-lg border border-[var(--border)] bg-[var(--bg-sheet)] p-2 shadow-[var(--shadow-elevated)] w-48">
+                      <div className="flex items-center justify-between px-2 py-1">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
+                          Screens
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setScreensMenuOpen(false)}
+                          className="rounded p-1 hover:bg-[var(--bg-tertiary)] transition-colors"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                          </svg>
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={toggle}
+                        className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-[13px] font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors cursor-pointer"
+                      >
+                        {theme === "dark" ? "☀ Light" : "● Dark"}
+                      </button>
+                      <div className="mx-1 h-px bg-[var(--divider)]" />
+                      {ROUTES.map((r) => (
+                        <Link
+                          key={r.href}
+                          href={r.href}
+                          onClick={() => setScreensMenuOpen(false)}
+                          className={cn(
+                            "rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors",
+                            pathname === r.href
+                              ? "bg-[var(--accent-primary)] text-white"
+                              : "text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]",
+                          )}
+                        >
+                          {r.label}
+                        </Link>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+              <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">When2Meet</h2>
+            </div>
             <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
                 {theme === "dark" ? (
                   <svg width="18" height="18" viewBox="0 0 20 20" fill="none">

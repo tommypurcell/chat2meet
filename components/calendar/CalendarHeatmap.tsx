@@ -59,16 +59,13 @@ export function CalendarHeatmap({ userId, days = 30 }: CalendarHeatmapProps) {
     }
   }
 
-  function getColorIntensity(count: number, maxCount: number): string {
-    if (count === 0) return "bg-gray-100 dark:bg-gray-800";
+  function getHeatmapStyle(count: number, maxCount: number): React.CSSProperties {
+    if (count === 0) return { background: 'var(--bg-tertiary)' };
 
     const intensity = count / maxCount;
+    const opacity = 0.2 + intensity * 0.8; // range 0.2 to 1.0
 
-    if (intensity < 0.2) return "bg-blue-200 dark:bg-blue-900";
-    if (intensity < 0.4) return "bg-blue-300 dark:bg-blue-800";
-    if (intensity < 0.6) return "bg-blue-400 dark:bg-blue-700";
-    if (intensity < 0.8) return "bg-blue-500 dark:bg-blue-600";
-    return "bg-blue-600 dark:bg-blue-500";
+    return { background: `color-mix(in srgb, var(--accent-primary) ${Math.round(opacity * 100)}%, transparent)` };
   }
 
   function formatHour(hour: number): string {
@@ -155,12 +152,13 @@ export function CalendarHeatmap({ userId, days = 30 }: CalendarHeatmapProps) {
               <div className="flex-1 flex gap-1">
                 {HOURS.map((hour) => {
                   const count = heatmapData[dayIndex]?.[hour] || 0;
-                  const colorClass = getColorIntensity(count, stats.maxBusyCount);
+                  const cellStyle = getHeatmapStyle(count, stats.maxBusyCount);
 
                   return (
                     <div
                       key={hour}
-                      className={`flex-1 h-6 rounded ${colorClass} transition-all hover:ring-2 hover:ring-blue-400 cursor-pointer min-w-[20px]`}
+                      className="flex-1 h-6 rounded transition-all hover:ring-2 hover:ring-[var(--border-focused)] cursor-pointer min-w-[20px]"
+                      style={cellStyle}
                       onMouseEnter={() =>
                         setHoveredCell({ day: dayIndex, hour, count })
                       }

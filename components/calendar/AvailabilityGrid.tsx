@@ -2,7 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 
-const DAYS = ["Mon 24", "Tue 25", "Wed 26", "Thu 27", "Fri 28"] as const;
+const DAYS_NAMES = ["Mon 23", "Tue 24", "Wed 25", "Thu 26", "Fri 27"] as const;
 
 const TIME_SLOTS: string[] = [];
 for (let h = 9; h <= 17; h++) {
@@ -32,35 +32,32 @@ export function AvailabilityGrid({ timePosition = "left" }: AvailabilityGridProp
   const paintModeRef = useRef<boolean>(true); // true = adding, false = removing
   const gridRef = useRef<HTMLDivElement>(null);
 
-  // Fetch real Google Calendar events
+  // Fetch initial selected and busy slots
   useEffect(() => {
     if (!user?.uid) return;
 
-    async function fetchCalendar() {
+    async function fetchData() {
       setLoading(true);
       try {
-        // Fetch for the specific week of March 24-28, 2026 (matching mock data)
+        // Fetch saved availability
+        const availRes = await fetch("/api/user/availability");
+        const availData = await availRes.json();
+        if (availData.success && Array.isArray(availData.slots)) {
+          setSelected(new Set(availData.slots as CellKey[]));
+        }
+
+        // Fetch Google Calendar events for context
         const timeMin = "2026-03-23T00:00:00Z";
         const timeMax = "2026-03-29T23:59:59Z";
+        const calRes = await fetch(`/api/calendar/google/events?userId=${user?.uid}&timeMin=${timeMin}&timeMax=${timeMax}`);
+        const calData = await calRes.json();
         
-        const res = await fetch(`/api/calendar/google/events?userId=${user?.uid}&timeMin=${timeMin}&timeMax=${timeMax}`);
-        const data = await res.json();
-        
-        if (data.success && data.events) {
+        if (calData.success && calData.events) {
           const newBusy = new Set<CellKey>();
-          
-          data.events.forEach((event: CalendarEvent) => {
+          calData.events.forEach((event: CalendarEvent) => {
             const start = new Date(event.start);
             const end = new Date(event.end);
-            
-            // Map to our grid (Mon-Fri)
-            // Mon is 2026-03-24? No, Mon is 24 in our DAYS array? 
-            // Let's check: 2026-03-23 is Monday.
-            // Our DAYS = ["Mon 24", ...] - wait, 24 is Tuesday in 2026?
-            // Actually, 2026-03-23 is Monday. 
-            // Let's assume Mon 23, Tue 24, etc.
-            
-            const dayOffset = start.getDay() - 1; // 0 for Mon, 1 for Tue...
+            const dayOffset = start.getDay() - 1; 
             if (dayOffset >= 0 && dayOffset < 5) {
               const startHour = start.getHours();
               const startMin = start.getMinutes();
@@ -72,7 +69,6 @@ export function AvailabilityGrid({ timePosition = "left" }: AvailabilityGridProp
                 const slotTimeInMin = h * 60 + m;
                 const startTimeInMin = startHour * 60 + startMin;
                 const endTimeInMin = endHour * 60 + endMin;
-
                 if (slotTimeInMin >= startTimeInMin && slotTimeInMin < endTimeInMin) {
                   newBusy.add(`${dayOffset}-${slotIdx}`);
                 }
@@ -82,14 +78,38 @@ export function AvailabilityGrid({ timePosition = "left" }: AvailabilityGridProp
           setBusySlots(newBusy);
         }
       } catch (err) {
-        console.error("Failed to fetch calendar events:", err);
+        console.error("Failed to fetch data:", err);
       } finally {
         setLoading(false);
       }
     }
 
-    fetchCalendar();
+    fetchData();
   }, [user?.uid]);
+
+  // Auto-save whenever "selected" changes after a delay
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    if (selected.size === 0 && !loading) return; // Wait until initial load
+
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        await fetch("/api/user/availability", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slots: Array.from(selected) }),
+        });
+      } catch (err) {
+        console.error("Failed to save availability:", err);
+      }
+    }, 1000); // 1s debounce
+
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [selected, loading]);
 
   const toggleCell = useCallback((key: CellKey) => {
     setSelected((prev) => {
@@ -120,7 +140,6 @@ export function AvailabilityGrid({ timePosition = "left" }: AvailabilityGridProp
   const getCellFromEvent = useCallback((e: React.MouseEvent | React.TouchEvent): CellKey | null => {
     const grid = gridRef.current;
     if (!grid) return null;
-
     let clientX: number, clientY: number;
     if ("touches" in e) {
       const touch = e.touches[0];
@@ -131,7 +150,6 @@ export function AvailabilityGrid({ timePosition = "left" }: AvailabilityGridProp
       clientX = e.clientX;
       clientY = e.clientY;
     }
-
     const el = document.elementFromPoint(clientX, clientY);
     if (!el) return null;
     const cellKey = el.getAttribute("data-cell");
@@ -160,7 +178,6 @@ export function AvailabilityGrid({ timePosition = "left" }: AvailabilityGridProp
     const isBusy = busySlots.has(key);
 
     if (isSelected && isBusy) {
-      // Overlap
       return "rgba(0, 255, 163, 0.8)";
     }
     if (isSelected) {
@@ -212,7 +229,7 @@ export function AvailabilityGrid({ timePosition = "left" }: AvailabilityGridProp
         onTouchMove={onPointerMove}
         onTouchEnd={onPointerUp}
       >
-        <table className="w-full border-collapse" style={{ minWidth: DAYS.length * 50 + 50 }}>
+        <table className="w-full border-collapse" style={{ minWidth: DAYS_NAMES.length * 50 + 50 }}>
           <thead>
             <tr>
               {timePosition === "left" && <th className="sticky left-0 z-10 w-[50px] bg-[var(--bg-primary)] p-0" />}

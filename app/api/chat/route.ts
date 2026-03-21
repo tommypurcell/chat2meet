@@ -1,9 +1,47 @@
 import { google } from "@ai-sdk/google";
 import { streamText, tool, convertToModelMessages, stepCountIs, type UIMessage } from "ai";
 import { z } from "zod";
+import { getAuth, getDb } from "@/lib/firebase-admin";
+import { FIREBASE_SESSION_COOKIE } from "@/lib/auth-session";
+import { cookies } from "next/headers";
+
+const DAYS_NAMES = ["Mon 23", "Tue 24", "Wed 25", "Thu 26", "Fri 27"];
+const TIME_SLOTS: string[] = [];
+for (let h = 9; h <= 17; h++) {
+  TIME_SLOTS.push(`${h}:00`);
+  TIME_SLOTS.push(`${h}:30`);
+}
+
+function formatSlots(slots: string[]): string {
+  if (!slots || slots.length === 0) return "No specific availability set.";
+  return slots.map(s => {
+    const [d, t] = s.split("-").map(Number);
+    return `${DAYS_NAMES[d]} ${TIME_SLOTS[t]}`;
+  }).join(", ");
+}
 
 export async function POST(req: Request) {
   const { messages }: { messages: UIMessage[] } = await req.json();
+
+  // Try to get user preferences for the system prompt
+  let privatePrefs = "";
+  try {
+    const cookieStore = cookies();
+    const sessionCookie = cookieStore.get(FIREBASE_SESSION_COOKIE)?.value;
+    if (sessionCookie) {
+      const auth = getAuth();
+      const decoded = await auth.verifySessionCookie(sessionCookie);
+      const db = getDb();
+      const userDoc = await db.collection("users").doc(decoded.uid).get();
+      if (userDoc.exists) {
+        const data = userDoc.data();
+        const readableAvail = formatSlots(data?.availableSlots || []);
+        privatePrefs = `\n\nUSER PRIVATE PREFERENCES (Only you can see this):\n- Preferred meeting times: ${readableAvail}\n- Public Preferences: ${data?.preferences?.public || "None set"}\n- Private Preferences: ${data?.preferences?.private || "None set"}`;
+      }
+    }
+  } catch (e) {
+    console.error("Error fetching user prefs for chat:", e);
+  }
 
   const result = streamText({
     model: google("gemini-2.0-flash-lite-preview-02-05"),
@@ -22,7 +60,7 @@ On your first message, introduce yourself briefly. Then:
 - When a user mentions wanting to meet with someone specific, use your tools to find overlapping free times and suggest specific times without asking lots of follow-up questions
 - Call suggestTimes when you find good meeting times to display them interactively
 
-Today's date is ${new Date().toISOString().split("T")[0]}.`,
+Today's date is ${new Date().toISOString().split("T")[0]}.${privatePrefs}`,
     messages: await convertToModelMessages(messages),
     stopWhen: stepCountIs(5),
     tools: {
@@ -81,47 +119,19 @@ Today's date is ${new Date().toISOString().split("T")[0]}.`,
             Array<{ title: string; start: string; end: string }>
           > = {
             u1: [
-              {
-                title: "Standup",
-                start: "2026-03-23T09:00:00",
-                end: "2026-03-23T09:30:00",
-              },
-              {
-                title: "Design review",
-                start: "2026-03-24T14:00:00",
-                end: "2026-03-24T15:00:00",
-              },
+              { title: "Standup", start: "2026-03-23T09:00:00", end: "2026-03-23T09:30:00" },
+              { title: "Design review", start: "2026-03-24T14:00:00", end: "2026-03-24T15:00:00" },
             ],
             u2: [
-              {
-                title: "1:1 with manager",
-                start: "2026-03-23T10:00:00",
-                end: "2026-03-23T11:00:00",
-              },
-              {
-                title: "Sprint planning",
-                start: "2026-03-25T09:00:00",
-                end: "2026-03-25T11:00:00",
-              },
+              { title: "1:1 with manager", start: "2026-03-23T10:00:00", end: "2026-03-23T11:00:00" },
+              { title: "Sprint planning", start: "2026-03-25T09:00:00", end: "2026-03-25T11:00:00" },
             ],
             u3: [
-              {
-                title: "Client call",
-                start: "2026-03-23T13:00:00",
-                end: "2026-03-23T14:00:00",
-              },
-              {
-                title: "Team lunch",
-                start: "2026-03-24T12:00:00",
-                end: "2026-03-24T13:30:00",
-              },
+              { title: "Client call", start: "2026-03-23T13:00:00", end: "2026-03-23T14:00:00" },
+              { title: "Team lunch", start: "2026-03-24T12:00:00", end: "2026-03-24T13:30:00" },
             ],
             u4: [
-              {
-                title: "Workshop",
-                start: "2026-03-24T09:00:00",
-                end: "2026-03-24T12:00:00",
-              },
+              { title: "Workshop", start: "2026-03-24T09:00:00", end: "2026-03-24T12:00:00" },
             ],
           };
           return { userId, events: mockSchedules[userId] ?? [] };

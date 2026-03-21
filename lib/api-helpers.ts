@@ -1,3 +1,4 @@
+import { FieldValue } from "firebase-admin/firestore";
 import { NextResponse } from "next/server";
 import { getDb, getServerTimestamp } from "./firebase-admin";
 
@@ -52,9 +53,9 @@ export function extractFields(
 
 // Helper for Firestore array operations
 export function arrayUnion(value: unknown) {
-  return getDb().firestore.FieldValue.arrayUnion(value);
+  return FieldValue.arrayUnion(value);
 }
 
 export function arrayRemove(value: unknown) {
-  return getDb().firestore.FieldValue.arrayRemove(value);
+  return FieldValue.arrayRemove(value);
 }

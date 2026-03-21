@@ -172,6 +172,7 @@ export default function Home() {
   const [showInvitePreview, setShowInvitePreview] = useState(false);
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const [screensMenuOpen, setScreensMenuOpen] = useState(false);
+  const [showCalendarView, setShowCalendarView] = useState(true);
 
   const visibleDates = MARCH_DATES.filter(
     (d) => d.day >= 16 && d.day <= 22,
@@ -185,7 +186,7 @@ export default function Home() {
     <div className="flex h-[100dvh] w-full bg-[var(--bg-primary)] text-[var(--text-primary)]">
 
       {/* ═══════════════════════════════════════════════════ */}
-      {/* DESKTOP (lg+): 3-column layout                     */}
+      {/* DESKTOP (lg+): 2-column layout (sidebar + chat)    */}
       {/* ═══════════════════════════════════════════════════ */}
       <div className="hidden lg:flex lg:flex-1">
 
@@ -322,101 +323,69 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ── Center column: Calendar / Availability Grid ─ */}
-        <div className="flex flex-1 flex-col border-r border-[var(--divider)]">
-          {/* Nav */}
-          <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-6 py-4">
-            <h1 className="text-2xl font-bold tracking-tight">
-              {chatStarted ? "Select Availability" : "March 2026"}
-            </h1>
-            <div className="flex items-center gap-2">
-              <Link href="/network">
-                <Button variant="secondary" size="sm">
-                  Network
-                </Button>
-              </Link>
-              {chatStarted && (
-                <Button variant="ghost" size="sm" onClick={() => {}}>
-                  Back to calendar
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {chatStarted ? (
-            /* Availability grid (when2meet-style) */
-            <div className="flex-1 overflow-hidden p-4">
-              <AvailabilityGrid />
-            </div>
-          ) : (
-            /* Calendar */
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="mx-auto max-w-lg">
-                <div className="grid grid-cols-7 mb-2">
-                  {WEEK_DAYS.map((d, i) => (
-                    <div key={`${d}-${i}`} className="flex items-center justify-center py-2 text-sm font-medium text-[var(--text-tertiary)]">
-                      {d}
-                    </div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-7 gap-y-2">
-                  {visibleDates.map((d) => (
-                    <div key={d.day} className="flex items-center justify-center">
-                      <CalendarCell
-                        day={d.day}
-                        active={d.day === selectedDay}
-                        today={d.day === 20}
-                        hasEvent={d.day === 19 || d.day === 21 || d.day === 23 ? true : d.events}
-                        onClick={() => setSelectedDay(d.day)}
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                {/* Suggestion chips below calendar */}
-                <div className="mt-8">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
-                    Quick schedule
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {CHAT_SUGGESTIONS.map((s) => (
-                      <button
-                        key={s.title}
-                        type="button"
-                        onClick={() => handleSendMessage(s.body)}
-                        className="flex items-start gap-3 rounded-xl bg-[var(--bg-secondary)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-tertiary)] cursor-pointer"
-                      >
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-[var(--text-primary)] truncate">{s.title}</p>
-                          <p className="text-xs text-[var(--text-tertiary)] truncate">{s.body}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ── Right column: Chat ──────────────────────── */}
-        <div className="flex w-[380px] shrink-0 flex-col bg-[var(--bg-sheet)] xl:w-[420px]">
+        {/* ── Right column: Full-width Chat ──────────────── */}
+        <div className="flex flex-1 flex-col bg-[var(--bg-sheet)]">
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-5 py-4">
             <h2 className="text-lg font-semibold">Chat</h2>
-            <Avatar name="W" size={28} />
+            <div className="flex items-center gap-2">
+              <Link href="/calendar">
+                <Button variant="ghost" size="lg" title="Calendar" className="p-2">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.75" />
+                    <path d="M3 9h18M8 2v4M16 2v4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+                  </svg>
+                </Button>
+              </Link>
+              <Link href="/availability">
+                <Button variant="ghost" size="lg" title="Availability" className="p-2">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <rect x="2" y="3" width="20" height="18" rx="2" stroke="currentColor" strokeWidth="1.75" />
+                    <path d="M2 9h20M6 2v7M12 2v7M18 2v7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+                  </svg>
+                </Button>
+              </Link>
+              <Link href="/network">
+                <Button variant="ghost" size="lg" title="Network" className="p-2">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <circle cx="7" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+                    <circle cx="17" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+                    <circle cx="12" cy="16" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+                    <path d="M9 10c.5.5 1.5 1 3 1s2.5-.5 3-1M7 10v2c0 1.5.5 2.5 2 3M17 10v2c0 1.5-.5 2.5-2 3M12 18.5v2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </Button>
+              </Link>
+              <Link href="/profile">
+                <Button variant="ghost" className="p-1.5" title="Profile">
+                  <Avatar name="Rae" size={24} />
+                </Button>
+              </Link>
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto overscroll-contain py-2">
             {!chatStarted ? (
-              <div className="flex flex-col items-center justify-center h-full px-6 text-center">
+              <div className="flex flex-col items-center justify-center h-full px-6 py-8">
                 <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--bg-tertiary)]">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
                     <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="var(--text-tertiary)" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </div>
-                <p className="text-sm font-medium text-[var(--text-secondary)]">
-                  Select a group or type a message to start scheduling
+                <p className="text-sm font-medium text-[var(--text-secondary)] mb-6">
+                  Start a conversation to find meeting times
                 </p>
+                <div className="w-full max-w-2xl grid grid-cols-2 gap-3">
+                  {CHAT_SUGGESTIONS.map((s) => (
+                    <button
+                      key={s.title}
+                      type="button"
+                      onClick={() => handleSendMessage(`Can we schedule ${s.title.toLowerCase().replace("?", "")} with ${s.body}`)}
+                      className="group flex flex-col items-start gap-2 rounded-2xl bg-[var(--bg-secondary)] px-5 py-4 text-left transition-all hover:bg-[var(--bg-tertiary)] border border-[var(--border)] hover:border-[var(--accent-primary)]/30 cursor-pointer"
+                    >
+                      <p className="text-sm font-semibold text-[var(--text-primary)] group-hover:text-[var(--accent-primary)] transition-colors">{s.title}</p>
+                      <p className="text-xs text-[var(--text-secondary)]">{s.body}</p>
+                    </button>
+                  ))}
+                </div>
               </div>
             ) : (
               <ChatContent
@@ -506,7 +475,7 @@ export default function Home() {
                   <button
                     key={s.title}
                     type="button"
-                    onClick={() => handleSendMessage(s.body)}
+                    onClick={() => handleSendMessage(`Can we schedule ${s.title.toLowerCase().replace("?", "")} with ${s.body}`)}
                     className="flex items-start gap-3 rounded-xl bg-[var(--bg-secondary)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-tertiary)] cursor-pointer"
                   >
                     <div className="min-w-0">
@@ -579,7 +548,7 @@ export default function Home() {
                     <button
                       key={s.title}
                       type="button"
-                      onClick={() => handleSendMessage(s.body)}
+                      onClick={() => handleSendMessage(`Can we schedule ${s.title.toLowerCase().replace("?", "")} with ${s.body}`)}
                       className="flex items-start gap-3 rounded-xl bg-[var(--bg-secondary)] px-3 py-3 text-left transition-colors hover:bg-[var(--bg-tertiary)] cursor-pointer"
                     >
                       <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--bubble-action)] text-[var(--text-link)]">

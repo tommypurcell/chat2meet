@@ -10,8 +10,10 @@ export async function POST(req: Request) {
     system: `You are When2Meet Agent, a smart scheduling assistant.
 Help users find times to meet with their friends and colleagues.
 
-Keep responses brief and conversational. For greetings or general questions, respond naturally.
-When a user mentions wanting to meet with someone specific, use your tools to find overlapping free times and suggest specific times without asking lots of follow-up questions.
+On your first message, introduce yourself briefly. Then:
+- Keep responses brief and conversational
+- When a user mentions wanting to meet with someone specific, use your tools to find overlapping free times and suggest specific times without asking lots of follow-up questions
+- Call suggestTimes when you find good meeting times to display them interactively
 
 Today's date is ${new Date().toISOString().split("T")[0]}.`,
     messages: await convertToModelMessages(messages),

@@ -1,5 +1,6 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
 
 const DAYS = ["Mon 24", "Tue 25", "Wed 26", "Thu 27", "Fri 28"] as const;
 
@@ -11,26 +12,84 @@ for (let h = 9; h <= 17; h++) {
 
 type CellKey = `${number}-${number}`;
 
-// Simulated "other people's" availability (heatmap overlay)
-const OTHERS_AVAILABILITY: Record<CellKey, number> = {
-  "1-2": 2, "1-3": 3, "1-4": 3, "1-5": 2,
-  "2-4": 1, "2-5": 2, "2-6": 2, "2-7": 1,
-  "3-6": 2, "3-7": 3, "3-8": 3, "3-9": 2,
-  "0-10": 1, "0-11": 2, "0-12": 2,
-  "4-2": 2, "4-3": 3, "4-4": 2,
-};
-
-const MAX_OTHERS = 3;
+interface CalendarEvent {
+  id: string;
+  summary: string;
+  start: string;
+  end: string;
+}
 
 interface AvailabilityGridProps {
   timePosition?: "left" | "right";
 }
 
 export function AvailabilityGrid({ timePosition = "left" }: AvailabilityGridProps) {
+  const { user } = useAuth();
   const [selected, setSelected] = useState<Set<CellKey>>(new Set());
+  const [busySlots, setBusySlots] = useState<Set<CellKey>>(new Set());
   const [painting, setPainting] = useState(false);
+  const [loading, setLoading] = useState(false);
   const paintModeRef = useRef<boolean>(true); // true = adding, false = removing
   const gridRef = useRef<HTMLDivElement>(null);
+
+  // Fetch real Google Calendar events
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    async function fetchCalendar() {
+      setLoading(true);
+      try {
+        // Fetch for the specific week of March 24-28, 2026 (matching mock data)
+        const timeMin = "2026-03-23T00:00:00Z";
+        const timeMax = "2026-03-29T23:59:59Z";
+        
+        const res = await fetch(`/api/calendar/google/events?userId=${user?.uid}&timeMin=${timeMin}&timeMax=${timeMax}`);
+        const data = await res.json();
+        
+        if (data.success && data.events) {
+          const newBusy = new Set<CellKey>();
+          
+          data.events.forEach((event: CalendarEvent) => {
+            const start = new Date(event.start);
+            const end = new Date(event.end);
+            
+            // Map to our grid (Mon-Fri)
+            // Mon is 2026-03-24? No, Mon is 24 in our DAYS array? 
+            // Let's check: 2026-03-23 is Monday.
+            // Our DAYS = ["Mon 24", ...] - wait, 24 is Tuesday in 2026?
+            // Actually, 2026-03-23 is Monday. 
+            // Let's assume Mon 23, Tue 24, etc.
+            
+            const dayOffset = start.getDay() - 1; // 0 for Mon, 1 for Tue...
+            if (dayOffset >= 0 && dayOffset < 5) {
+              const startHour = start.getHours();
+              const startMin = start.getMinutes();
+              const endHour = end.getHours();
+              const endMin = end.getMinutes();
+
+              TIME_SLOTS.forEach((slot, slotIdx) => {
+                const [h, m] = slot.split(":").map(Number);
+                const slotTimeInMin = h * 60 + m;
+                const startTimeInMin = startHour * 60 + startMin;
+                const endTimeInMin = endHour * 60 + endMin;
+
+                if (slotTimeInMin >= startTimeInMin && slotTimeInMin < endTimeInMin) {
+                  newBusy.add(`${dayOffset}-${slotIdx}`);
+                }
+              });
+            }
+          });
+          setBusySlots(newBusy);
+        }
+      } catch (err) {
+        console.error("Failed to fetch calendar events:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchCalendar();
+  }, [user?.uid]);
 
   const toggleCell = useCallback((key: CellKey) => {
     setSelected((prev) => {
@@ -98,23 +157,17 @@ export function AvailabilityGrid({ timePosition = "left" }: AvailabilityGridProp
   function getHeatColor(dayIdx: number, slotIdx: number): string {
     const key: CellKey = `${dayIdx}-${slotIdx}`;
     const isSelected = selected.has(key);
-    const othersCount = OTHERS_AVAILABILITY[key] || 0;
+    const isBusy = busySlots.has(key);
 
-    if (isSelected && othersCount > 0) {
-      // Overlap — bright accent
-      const intensity = Math.min(othersCount / MAX_OTHERS, 1);
-      const alpha = 0.4 + intensity * 0.6;
-      return `rgba(0, 255, 163, ${alpha})`;
+    if (isSelected && isBusy) {
+      // Overlap
+      return "rgba(0, 255, 163, 0.8)";
     }
     if (isSelected) {
-      // Only you
       return "var(--accent-primary)";
     }
-    if (othersCount > 0) {
-      // Others only
-      const intensity = Math.min(othersCount / MAX_OTHERS, 1);
-      const alpha = 0.08 + intensity * 0.2;
-      return `rgba(0, 255, 163, ${alpha})`;
+    if (isBusy) {
+      return "rgba(0, 255, 163, 0.15)";
     }
     return "transparent";
   }
@@ -142,10 +195,10 @@ export function AvailabilityGrid({ timePosition = "left" }: AvailabilityGridProp
         </div>
         <div className="flex items-center gap-1.5">
           <div className="h-2.5 w-2.5 rounded-sm" style={{ background: "rgba(0,255,163,0.3)" }} />
-          <span className="text-[10px] text-[var(--text-tertiary)]">Busy</span>
+          <span className="text-[10px] text-[var(--text-tertiary)]">GCal</span>
         </div>
         <span className="ml-auto text-[10px] text-[var(--text-tertiary)]">
-          MARCH 24–28
+          {loading ? "Syncing..." : "MARCH 23–27"}
         </span>
       </div>
 
@@ -163,7 +216,7 @@ export function AvailabilityGrid({ timePosition = "left" }: AvailabilityGridProp
           <thead>
             <tr>
               {timePosition === "left" && <th className="sticky left-0 z-10 w-[50px] bg-[var(--bg-primary)] p-0" />}
-              {DAYS.map((day) => (
+              {["Mon 23", "Tue 24", "Wed 25", "Thu 26", "Fri 27"].map((day) => (
                 <th
                   key={day}
                   className="border-b border-[var(--divider)] px-1 py-1.5 text-center text-[10px] font-semibold text-[var(--text-tertiary)]"
@@ -181,7 +234,7 @@ export function AvailabilityGrid({ timePosition = "left" }: AvailabilityGridProp
               return (
                 <tr key={time}>
                   {timePosition === "left" && <TimeColumn time={time} isHour={isHour} />}
-                  {DAYS.map((_, dayIdx) => {
+                  {[0,1,2,3,4].map((dayIdx) => {
                     const key: CellKey = `${dayIdx}-${slotIdx}`;
                     const bg = getHeatColor(dayIdx, slotIdx);
                     const isSelected = selected.has(key);

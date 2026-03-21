@@ -199,44 +199,57 @@ export default function Home() {
           </div>
         </div>
 
-        {/* ── Center column: Calendar ──────────────────── */}
+        {/* ── Center column: Calendar / Availability Grid ─ */}
         <div className="flex flex-1 flex-col border-r border-[var(--divider)]">
           {/* Nav */}
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-6 py-4">
-            <h1 className="text-2xl font-bold tracking-tight">March 2026</h1>
-            <Button variant="ghost" size="icon" aria-label="Add event">
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path d="M10 4V16M4 10H16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-            </Button>
+            <h1 className="text-2xl font-bold tracking-tight">
+              {chatStarted ? "Select Availability" : "March 2026"}
+            </h1>
+            {chatStarted ? (
+              <Button variant="ghost" size="sm" onClick={() => setChatStarted(false)}>
+                Back to calendar
+              </Button>
+            ) : (
+              <Button variant="ghost" size="icon" aria-label="Add event">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                  <path d="M10 4V16M4 10H16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              </Button>
+            )}
           </div>
 
-          {/* Calendar */}
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="mx-auto max-w-lg">
-              <div className="grid grid-cols-7 mb-2">
-                {WEEK_DAYS.map((d, i) => (
-                  <div key={`${d}-${i}`} className="flex items-center justify-center py-2 text-sm font-medium text-[var(--text-tertiary)]">
-                    {d}
-                  </div>
-                ))}
-              </div>
-              <div className="grid grid-cols-7 gap-y-2">
-                {visibleDates.map((d) => (
-                  <div key={d.day} className="flex items-center justify-center">
-                    <CalendarCell
-                      day={d.day}
-                      active={d.day === selectedDay}
-                      today={d.day === 20}
-                      hasEvent={d.day === 19 || d.day === 21 || d.day === 23 ? true : d.events}
-                      onClick={() => setSelectedDay(d.day)}
-                    />
-                  </div>
-                ))}
-              </div>
+          {chatStarted ? (
+            /* Availability grid (when2meet-style) */
+            <div className="flex-1 overflow-hidden p-4">
+              <AvailabilityGrid />
+            </div>
+          ) : (
+            /* Calendar */
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="mx-auto max-w-lg">
+                <div className="grid grid-cols-7 mb-2">
+                  {WEEK_DAYS.map((d, i) => (
+                    <div key={`${d}-${i}`} className="flex items-center justify-center py-2 text-sm font-medium text-[var(--text-tertiary)]">
+                      {d}
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7 gap-y-2">
+                  {visibleDates.map((d) => (
+                    <div key={d.day} className="flex items-center justify-center">
+                      <CalendarCell
+                        day={d.day}
+                        active={d.day === selectedDay}
+                        today={d.day === 20}
+                        hasEvent={d.day === 19 || d.day === 21 || d.day === 23 ? true : d.events}
+                        onClick={() => setSelectedDay(d.day)}
+                      />
+                    </div>
+                  ))}
+                </div>
 
-              {/* Suggestion chips below calendar */}
-              {!chatStarted && (
+                {/* Suggestion chips below calendar */}
                 <div className="mt-8">
                   <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
                     Quick schedule
@@ -257,9 +270,9 @@ export default function Home() {
                     ))}
                   </div>
                 </div>
-              )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* ── Right column: Chat ──────────────────────── */}

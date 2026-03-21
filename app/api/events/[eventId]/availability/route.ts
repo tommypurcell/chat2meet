@@ -1,15 +1,13 @@
-import type { Query } from "firebase-admin/firestore";
-import { NextRequest, NextResponse } from "next/server";
-import { getDb, getServerTimestamp } from "@/lib/firebase-admin";
-import type { EventAvailabilityDoc } from "@/lib/types";
+import { NextRequest } from "next/server";
+import {
+  collection,
+  getDocOrError,
+  timestamps,
+  errorResponse,
+  successResponse,
+} from "@/lib/api-helpers";
 
-/**
- * POST /api/events/[eventId]/availability
- * Add or update availability for a user in an event
- *
- * Required body fields: userId
- * Optional fields: source, busyBlocks, freeWindows, lastSyncedAt
- */
+// POST /api/events/[eventId]/availability - Add/update availability
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ eventId: string }> }
@@ -18,118 +16,60 @@ export async function POST(
     const { eventId } = await params;
     const body = await request.json();
 
-    // Validate required fields
     if (!body.userId) {
-      return NextResponse.json(
-        { error: "Missing required field: userId" },
-        { status: 400 }
-      );
+      return errorResponse("userId is required", 400);
     }
 
-    // Check if event exists
-    const db = getDb();
-    const eventRef = db.collection("events").doc(eventId);
-    const eventDoc = await eventRef.get();
+    const eventRef = collection("events").doc(eventId);
+    const eventResult = await getDocOrError(eventRef);
+    if (eventResult.error) return eventResult.error;
 
-    if (!eventDoc.exists) {
-      return NextResponse.json({ error: "Event not found" }, { status: 404 });
-    }
-
-    // Create the availability document
-    const timestamp = getServerTimestamp();
-    const newAvailability: Omit<
-      EventAvailabilityDoc,
-      "lastSyncedAt" | "updatedAt"
-    > & {
-      lastSyncedAt: typeof timestamp;
-      updatedAt: typeof timestamp;
-    } = {
+    const ts = timestamps();
+    const newAvailability = {
       userId: body.userId,
       source: body.source || "unknown",
       busyBlocks: body.busyBlocks || [],
       freeWindows: body.freeWindows || [],
-      lastSyncedAt: body.lastSyncedAt || timestamp,
-      updatedAt: timestamp,
+      lastSyncedAt: body.lastSyncedAt || ts.createdAt,
+      updatedAt: ts.updatedAt,
     };
 
-    // Add to the availability subcollection
-    // Using userId as the document ID for easy lookups
-    const availabilityRef = eventRef
-      .collection("availability")
-      .doc(body.userId);
-
-    // Use set with merge to create or update
+    const availabilityRef = eventRef.collection("availability").doc(body.userId);
     await availabilityRef.set(newAvailability, { merge: true });
+    const doc = await availabilityRef.get();
 
-    // Fetch the created/updated document to return it
-    const createdDoc = await availabilityRef.get();
-
-    return NextResponse.json(
-      {
-        id: createdDoc.id,
-        ...createdDoc.data(),
-      },
-      { status: 201 }
-    );
+    return successResponse({ id: doc.id, ...doc.data() }, 201);
   } catch (error) {
     console.error("Error adding availability:", error);
-    return NextResponse.json(
-      { error: "Failed to add availability" },
-      { status: 500 }
-    );
+    return errorResponse("Failed to add availability");
   }
 }
 
-/**
- * GET /api/events/[eventId]/availability
- * List all availability records for an event
- *
- * Query params:
- * - source: filter by source (google_calendar, manual, unknown)
- */
+// GET /api/events/[eventId]/availability - List availability
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
   try {
     const { eventId } = await params;
-    const searchParams = request.nextUrl.searchParams;
+    const { searchParams } = request.nextUrl;
     const source = searchParams.get("source");
 
-    // Check if event exists
-    const db = getDb();
-    const eventRef = db.collection("events").doc(eventId);
-    const eventDoc = await eventRef.get();
+    const eventRef = collection("events").doc(eventId);
+    const eventResult = await getDocOrError(eventRef);
+    if (eventResult.error) return eventResult.error;
 
-    if (!eventDoc.exists) {
-      return NextResponse.json({ error: "Event not found" }, { status: 404 });
-    }
-
-    // Query availability subcollection
-    let query: Query = eventRef.collection("availability");
-
-    // Add source filter if provided
+    let query = eventRef.collection("availability");
     if (source) {
       query = query.where("source", "==", source);
     }
 
     const snapshot = await query.get();
+    const availability = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    // Map documents to include their IDs
-    const availability = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-
-    return NextResponse.json({
-      availability,
-      count: availability.length,
-    });
+    return successResponse({ availability, count: availability.length });
   } catch (error) {
     console.error("Error fetching availability:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch availability" },
-      { status: 500 }
-    );
+    return errorResponse("Failed to fetch availability");
   }
 }

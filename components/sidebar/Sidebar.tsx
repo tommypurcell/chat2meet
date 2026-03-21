@@ -1,8 +1,7 @@
-"use client";
-
 import { RECENT_EVENTS } from "@/lib/mock-data";
 import { EventList } from "./EventList";
 import { NewEventButton } from "./NewEventButton";
+import { Avatar } from "@/components/ui/Avatar";
 
 type SidebarProps = {
   open: boolean;
@@ -14,7 +13,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     <>
       <aside
         className={[
-          "fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col border-r border-[var(--chat-border)] bg-[var(--chat-sidebar)] transition-transform duration-200 ease-out md:static md:translate-x-0",
+          "fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col border-r border-[var(--divider)] bg-[var(--bg-secondary)] transition-transform duration-200 ease-out md:static md:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full",
         ].join(" ")}
       >
@@ -22,13 +21,13 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-2 text-[var(--chat-muted)] hover:bg-[var(--chat-surface-hover)] hover:text-[var(--chat-fg)] md:hidden"
+            className="rounded-lg p-2 text-[var(--text-tertiary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] md:hidden"
             aria-label="Close menu"
           >
             <PanelLeftIcon />
           </button>
-          <span className="truncate text-sm font-semibold tracking-tight text-[var(--chat-fg)]">
-            When2Meet Agent
+          <span className="truncate text-[15px] font-semibold tracking-[-0.24px] text-[var(--text-primary)]">
+            When2Meet
           </span>
         </div>
 
@@ -37,20 +36,18 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         </div>
 
         <div className="mt-4 flex min-h-0 flex-1 flex-col px-2">
-          <p className="px-2 pb-2 text-xs font-medium uppercase tracking-wide text-[var(--chat-muted)]">
+          <p className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.8px] text-[var(--text-tertiary)]">
             Recent
           </p>
           <EventList events={RECENT_EVENTS} />
         </div>
 
-        <div className="border-t border-[var(--chat-border)] p-2">
-          <div className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-[var(--chat-fg-muted)] hover:bg-[var(--chat-surface-hover)]">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--chat-accent-soft)] text-xs font-medium text-[var(--chat-accent)]">
-              You
-            </div>
+        <div className="border-t border-[var(--divider)] p-2">
+          <div className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]">
+            <Avatar name="Rae" size={32} />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[var(--chat-fg)]">Account</p>
-              <p className="truncate text-xs text-[var(--chat-muted)]">Free plan</p>
+              <p className="truncate text-[var(--text-primary)] text-sm font-medium">Rae</p>
+              <p className="truncate text-[11px] text-[var(--text-tertiary)]">Free plan</p>
             </div>
           </div>
         </div>

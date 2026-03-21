@@ -3,6 +3,13 @@ export type ChatSuggestion = {
   body: string;
 };
 
+export type MeetingGroup = {
+  id: string;
+  name: string;
+  members: string[];
+  lastActive: string;
+};
+
 export type EventItem = {
   id: string;
   title: string;

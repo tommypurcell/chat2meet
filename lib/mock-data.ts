@@ -1,6 +1,7 @@
 import type {
   ChatSuggestion,
   EventItem,
+  MeetingGroup,
   SchedulingEvent,
   ChatMessage,
   TimeSlot,
@@ -10,20 +11,53 @@ import type {
 
 export const CHAT_SUGGESTIONS: ChatSuggestion[] = [
   {
-    title: "Find overlapping free slots",
-    body: "Paste participant names or describe who needs to meet.",
+    title: "Pickleball again?",
+    body: "Pete, Janet, Phil — this week sometime",
   },
   {
-    title: "Optimize for a specific window",
-    body: "Prefer mornings PT, avoid Fridays, keep it under 45 minutes.",
+    title: "Coffee meeting?",
+    body: "Catch up with Sarah over coffee",
   },
   {
-    title: "Compare calendars politely",
-    body: "Draft a message to collect availability without the grid UI.",
+    title: "Social lab zoom",
+    body: "Set up recurring weekly for the group",
   },
   {
-    title: "Resolve timezone confusion",
-    body: "Translate proposed times for a distributed team.",
+    title: "1:1 with Mike",
+    body: "30 min check-in, mornings preferred",
+  },
+];
+
+export const MEETING_GROUPS: MeetingGroup[] = [
+  {
+    id: "mg1",
+    name: "Pickleball crew",
+    members: ["Pete", "Janet", "Phil"],
+    lastActive: "2 hours ago",
+  },
+  {
+    id: "mg2",
+    name: "Coffee w/ Sarah",
+    members: ["Sarah"],
+    lastActive: "Yesterday",
+  },
+  {
+    id: "mg3",
+    name: "Social Lab",
+    members: ["Alex", "Jordan", "Casey", "Sam"],
+    lastActive: "3 days ago",
+  },
+  {
+    id: "mg4",
+    name: "1:1 with Mike",
+    members: ["Mike"],
+    lastActive: "Last week",
+  },
+  {
+    id: "mg5",
+    name: "Design review",
+    members: ["Rae", "Kim", "Lee", "Taylor"],
+    lastActive: "Last week",
   },
 ];
 

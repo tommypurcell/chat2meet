@@ -27,6 +27,8 @@ export type UserDoc = {
   timezone: string;
   calendarConnected: boolean;
   ghostMode: boolean;
+  /** Google OAuth subject (`userinfo.id`) when the account was created via Google sign-in */
+  googleSub?: string;
   createdAt: FirestoreTimestamp;
   updatedAt: FirestoreTimestamp;
 };

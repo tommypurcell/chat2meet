@@ -9,7 +9,11 @@ import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ActionBubble } from "@/components/chat/ActionBubble";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { AvailabilityGrid } from "@/components/calendar/AvailabilityGrid";
+import { CalendarView } from "@/components/calendar/CalendarView";
+import { CalendarHeatmap } from "@/components/calendar/CalendarHeatmap";
 import { useTheme } from "@/lib/theme";
+import { useAuth } from "@/lib/auth-context";
+import { UserMenu } from "@/components/layout/UserMenu";
 import { cn } from "@/lib/utils";
 import {
   CHAT_SUGGESTIONS,
@@ -107,11 +111,13 @@ function ChatContent({
 /* ── Main page ────────────────────────────────────────── */
 export default function Home() {
   const { theme, toggle } = useTheme();
+  const { user, loading: authLoading } = useAuth();
   const [selectedDay, setSelectedDay] = useState(21);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [showInvitePreview, setShowInvitePreview] = useState(false);
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const [chatStarted, setChatStarted] = useState(false);
+  const [calendarView, setCalendarView] = useState<"month" | "week" | "day" | "heatmap">("month");
 
   const visibleDates = MARCH_DATES.filter(
     (d) => d.day >= 16 && d.day <= 22,
@@ -129,7 +135,7 @@ export default function Home() {
         <div className="flex w-[260px] shrink-0 flex-col border-r border-[var(--divider)] bg-[var(--bg-secondary)]">
           {/* Header */}
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-4">
-            <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">When2Meet</h2>
+            <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Chat 2 Meet</h2>
             <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
               {theme === "dark" ? (
                 <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
@@ -189,13 +195,7 @@ export default function Home() {
 
           {/* User */}
           <div className="border-t border-[var(--divider)] p-3">
-            <div className="flex items-center gap-2 rounded-lg px-2 py-2">
-              <Avatar name="Rae" size={32} />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-[var(--text-primary)]">Rae</p>
-                <p className="truncate text-[11px] text-[var(--text-tertiary)]">Free plan</p>
-              </div>
-            </div>
+            <UserMenu variant="sidebar" />
           </div>
         </div>
 
@@ -204,18 +204,61 @@ export default function Home() {
           {/* Nav */}
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-6 py-4">
             <h1 className="text-2xl font-bold tracking-tight">
-              {chatStarted ? "Select Availability" : "March 2026"}
+              {chatStarted ? "Select Availability" : "Calendar"}
             </h1>
             {chatStarted ? (
               <Button variant="ghost" size="sm" onClick={() => setChatStarted(false)}>
                 Back to calendar
               </Button>
             ) : (
-              <Button variant="ghost" size="icon" aria-label="Add event">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                  <path d="M10 4V16M4 10H16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-              </Button>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center bg-[var(--bg-secondary)] rounded-lg p-1">
+                  <button
+                    onClick={() => setCalendarView("month")}
+                    className={cn(
+                      "px-3 py-1 text-sm rounded transition-colors",
+                      calendarView === "month"
+                        ? "bg-[var(--bg-primary)] text-[var(--text-primary)] font-medium"
+                        : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    )}
+                  >
+                    Month
+                  </button>
+                  <button
+                    onClick={() => setCalendarView("week")}
+                    className={cn(
+                      "px-3 py-1 text-sm rounded transition-colors",
+                      calendarView === "week"
+                        ? "bg-[var(--bg-primary)] text-[var(--text-primary)] font-medium"
+                        : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    )}
+                  >
+                    Week
+                  </button>
+                  <button
+                    onClick={() => setCalendarView("day")}
+                    className={cn(
+                      "px-3 py-1 text-sm rounded transition-colors",
+                      calendarView === "day"
+                        ? "bg-[var(--bg-primary)] text-[var(--text-primary)] font-medium"
+                        : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    )}
+                  >
+                    Day
+                  </button>
+                  <button
+                    onClick={() => setCalendarView("heatmap")}
+                    className={cn(
+                      "px-3 py-1 text-sm rounded transition-colors",
+                      calendarView === "heatmap"
+                        ? "bg-[var(--bg-primary)] text-[var(--text-primary)] font-medium"
+                        : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    )}
+                  >
+                    Heatmap
+                  </button>
+                </div>
+              </div>
             )}
           </div>
 
@@ -225,52 +268,36 @@ export default function Home() {
               <AvailabilityGrid />
             </div>
           ) : (
-            /* Calendar */
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="mx-auto max-w-lg">
-                <div className="grid grid-cols-7 mb-2">
-                  {WEEK_DAYS.map((d, i) => (
-                    <div key={`${d}-${i}`} className="flex items-center justify-center py-2 text-sm font-medium text-[var(--text-tertiary)]">
-                      {d}
-                    </div>
-                  ))}
+            /* Calendar with real Google Calendar data */
+            <div className="flex-1 overflow-auto p-6">
+              {authLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-[var(--text-tertiary)]">Loading...</div>
                 </div>
-                <div className="grid grid-cols-7 gap-y-2">
-                  {visibleDates.map((d) => (
-                    <div key={d.day} className="flex items-center justify-center">
-                      <CalendarCell
-                        day={d.day}
-                        active={d.day === selectedDay}
-                        today={d.day === 20}
-                        hasEvent={d.day === 19 || d.day === 21 || d.day === 23 ? true : d.events}
-                        onClick={() => setSelectedDay(d.day)}
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                {/* Suggestion chips below calendar */}
-                <div className="mt-8">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
-                    Quick schedule
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {CHAT_SUGGESTIONS.map((s) => (
-                      <button
-                        key={s.title}
-                        type="button"
-                        onClick={() => setChatStarted(true)}
-                        className="flex items-start gap-3 rounded-xl bg-[var(--bg-secondary)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-tertiary)] cursor-pointer"
-                      >
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-[var(--text-primary)] truncate">{s.title}</p>
-                          <p className="text-xs text-[var(--text-tertiary)] truncate">{s.body}</p>
-                        </div>
-                      </button>
-                    ))}
+              ) : !user ? (
+                <div className="flex flex-col items-center justify-center h-full gap-4">
+                  <div className="text-[var(--text-secondary)] text-center">
+                    <p className="text-lg font-medium mb-2">Sign in to view your calendar</p>
+                    <p className="text-sm text-[var(--text-tertiary)]">Connect your Google Calendar to get started</p>
                   </div>
+                  <a
+                    href="/login"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Sign In
+                  </a>
                 </div>
-              </div>
+              ) : calendarView === "heatmap" ? (
+                <CalendarHeatmap userId={user.uid} days={30} />
+              ) : (
+                <CalendarView
+                  userId={user.uid}
+                  view={calendarView}
+                  onEventClick={(event) => {
+                    console.log("Event clicked:", event);
+                  }}
+                />
+              )}
             </div>
           )}
         </div>
@@ -279,7 +306,7 @@ export default function Home() {
         <div className="flex w-[380px] shrink-0 flex-col bg-[var(--bg-sheet)] xl:w-[420px]">
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-5 py-4">
             <h2 className="text-lg font-semibold">Chat</h2>
-            <Avatar name="W" size={28} />
+            <UserMenu variant="header" />
           </div>
 
           <div className="flex-1 overflow-y-auto overscroll-contain py-2">
@@ -319,7 +346,7 @@ export default function Home() {
         {/* Left: groups */}
         <div className="flex w-[260px] shrink-0 flex-col border-r border-[var(--divider)] bg-[var(--bg-secondary)]">
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-4">
-            <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">When2Meet</h2>
+            <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Chat 2 Meet</h2>
             <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
               {theme === "dark" ? (
                 <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
@@ -360,10 +387,7 @@ export default function Home() {
             ))}
           </div>
           <div className="border-t border-[var(--divider)] p-3">
-            <div className="flex items-center gap-2 px-2 py-1">
-              <Avatar name="Rae" size={28} />
-              <span className="text-sm font-medium text-[var(--text-primary)]">Rae</span>
-            </div>
+            <UserMenu variant="sidebar" />
           </div>
         </div>
 
@@ -371,6 +395,7 @@ export default function Home() {
         <div className="flex flex-1 flex-col bg-[var(--bg-primary)]">
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-5 py-4">
             <h2 className="text-lg font-semibold">Chat</h2>
+            <UserMenu variant="header" />
           </div>
           <div className="flex-1 overflow-y-auto overscroll-contain py-2">
             {!chatStarted ? (
@@ -411,7 +436,7 @@ export default function Home() {
       <div className="relative flex flex-1 flex-col md:hidden">
         {/* Nav */}
         <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-3">
-          <h1 className="text-lg font-bold text-[var(--text-primary)]">When2Meet</h1>
+          <h1 className="text-lg font-bold text-[var(--text-primary)]">Chat 2 Meet</h1>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
               {theme === "dark" ? (
@@ -425,6 +450,7 @@ export default function Home() {
                 </svg>
               )}
             </Button>
+            <UserMenu variant="header" />
           </div>
         </div>
 

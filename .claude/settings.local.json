@@ -11,7 +11,11 @@
       "Bash(node -e \":*)",
       "Bash(node -e \"const { tool } = require\\(''ai''\\); console.log\\(tool.toString\\(\\).substring\\(0, 500\\)\\)\")",
       "Bash(npx tsc:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(node -e \"require\\(''./package.json''\\)\")",
+      "Bash(node -e \"require\\(''./package-lock.json''\\)\")",
+      "Bash(node -e \"const fs=require\\(''fs''\\); const s=fs.readFileSync\\(''package.json'',''utf8''\\); console.log\\(''char at 340:'', JSON.stringify\\(s[340]\\)\\); console.log\\(''context:'', JSON.stringify\\(s.slice\\(330,360\\)\\)\\); console.log\\(''total length:'', s.length\\)\")",
+      "Bash(cd:*)"
     ]
   }
 }

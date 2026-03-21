@@ -1,5 +1,3 @@
-"use client";
-
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 
@@ -12,13 +10,13 @@ export function NewEventButton({ className, onClick }: NewEventButtonProps) {
   return (
     <Button
       type="button"
-      variant="outline"
+      variant="secondary"
       size="md"
       onClick={onClick}
       className={cn("w-full justify-start", className)}
     >
       <PlusIcon className="h-4 w-4" />
-      New availability search
+      New event
     </Button>
   );
 }

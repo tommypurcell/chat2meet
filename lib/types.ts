@@ -3,7 +3,6 @@ export type ChatSuggestion = {
   body: string;
 };
 
-/** Sidebar “recent” row */
 export type EventItem = {
   id: string;
   title: string;
@@ -11,7 +10,6 @@ export type EventItem = {
 
 export type EventStatus = "draft" | "collecting" | "ready";
 
-/** Rich event card (scheduling poll / agent session) */
 export type SchedulingEvent = {
   id: string;
   title: string;
@@ -21,3 +19,42 @@ export type SchedulingEvent = {
 };
 
 export type MessageRole = "user" | "assistant";
+
+export type ChatMessage = {
+  id: string;
+  role: MessageRole;
+  content: string;
+  type?: "text" | "action";
+};
+
+export type TimeSlot = {
+  id: string;
+  time: string;
+  date: string;
+};
+
+export type MeetingInvite = {
+  id: string;
+  title: string;
+  organizer: string;
+  time: string;
+  date: string;
+  location?: string;
+  attendees: string[];
+  status: "pending" | "accepted" | "declined" | "countered";
+};
+
+export type CalendarEvent = {
+  id: string;
+  title: string;
+  time: string;
+  color: "primary" | "warning" | "danger";
+};
+
+export type UserPreference = {
+  noMeetingsBefore: string;
+  noMeetingsAfter: string;
+  maxMeetingLength: number;
+  preferredDays: string[];
+  visibility: "public" | "private";
+};

@@ -72,7 +72,7 @@ export async function GET(
     const eventResult = await getDocOrError(eventRef);
     if (eventResult.error) return eventResult.error;
 
-    let query = eventRef.collection("participants");
+    let query: FirebaseFirestore.Query = eventRef.collection("participants");
     if (role) {
       query = query.where("role", "==", role);
     }

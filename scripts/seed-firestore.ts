@@ -16,6 +16,9 @@ const USERS = {
   tommy: "user_tommy",
   rae: "user_rae",
   janet: "user_janet",
+  pete: "user_pete",
+  phil: "user_phil",
+  sarah: "user_sarah",
 } as const;
 
 const EVENT_ID = "event_demo_pickleball";
@@ -60,17 +63,104 @@ async function seed() {
     createdAt: fixed("2026-03-03T09:00:00.000Z"),
     updatedAt: now(),
   });
-
-  batch.set(db.collection("network").doc(NETWORK_ID), {
-    ownerUserId: USERS.tommy,
-    memberUserId: USERS.rae,
-    memberName: "Rae",
-    memberEmail: "rae@example.com",
-    memberPhotoUrl: "",
-    relationStatus: "accepted",
-    createdAt: fixed("2026-03-10T18:00:00.000Z"),
+  batch.set(usersRef.doc(USERS.pete), {
+    name: "Pete",
+    email: "pete@example.com",
+    photoUrl: "",
+    timezone: "America/Los_Angeles",
+    calendarConnected: true,
+    ghostMode: false,
+    createdAt: fixed("2026-03-04T10:00:00.000Z"),
     updatedAt: now(),
   });
+  batch.set(usersRef.doc(USERS.phil), {
+    name: "Phil",
+    email: "phil@example.com",
+    photoUrl: "",
+    timezone: "America/Los_Angeles",
+    calendarConnected: true,
+    ghostMode: false,
+    createdAt: fixed("2026-03-05T11:00:00.000Z"),
+    updatedAt: now(),
+  });
+  batch.set(usersRef.doc(USERS.sarah), {
+    name: "Sarah",
+    email: "sarah@example.com",
+    photoUrl: "",
+    timezone: "America/Los_Angeles",
+    calendarConnected: true,
+    ghostMode: false,
+    createdAt: fixed("2026-03-06T09:30:00.000Z"),
+    updatedAt: now(),
+  });
+
+  // Create parent network documents
+  batch.set(db.collection("network").doc(USERS.tommy), { createdAt: now() });
+  batch.set(db.collection("network").doc(USERS.rae), { createdAt: now() });
+
+  // Tommy's network
+  batch.set(
+    db
+      .collection("network")
+      .doc(USERS.tommy)
+      .collection("friends")
+      .doc(USERS.rae),
+    {
+      status: "accepted",
+      createdAt: fixed("2026-03-10T18:00:00.000Z"),
+      updatedAt: now(),
+    }
+  );
+
+  // Rae's network connections
+  batch.set(
+    db
+      .collection("network")
+      .doc(USERS.rae)
+      .collection("friends")
+      .doc(USERS.pete),
+    {
+      status: "accepted",
+      createdAt: fixed("2026-03-11T10:00:00.000Z"),
+      updatedAt: now(),
+    }
+  );
+  batch.set(
+    db
+      .collection("network")
+      .doc(USERS.rae)
+      .collection("friends")
+      .doc(USERS.janet),
+    {
+      status: "accepted",
+      createdAt: fixed("2026-03-11T11:00:00.000Z"),
+      updatedAt: now(),
+    }
+  );
+  batch.set(
+    db
+      .collection("network")
+      .doc(USERS.rae)
+      .collection("friends")
+      .doc(USERS.phil),
+    {
+      status: "accepted",
+      createdAt: fixed("2026-03-11T12:00:00.000Z"),
+      updatedAt: now(),
+    }
+  );
+  batch.set(
+    db
+      .collection("network")
+      .doc(USERS.rae)
+      .collection("friends")
+      .doc(USERS.sarah),
+    {
+      status: "accepted",
+      createdAt: fixed("2026-03-12T09:00:00.000Z"),
+      updatedAt: now(),
+    }
+  );
 
   const eventRef = db.collection("events").doc(EVENT_ID);
   batch.set(eventRef, {
@@ -129,6 +219,7 @@ async function seed() {
   });
 
   const aCol = eventRef.collection("availability");
+  // All times in PST (-07:00) for easy overlap detection
   batch.set(aCol.doc(USERS.rae), {
     userId: USERS.rae,
     source: "google_calendar",
@@ -148,20 +239,96 @@ async function seed() {
     lastSyncedAt: fixed("2026-03-20T08:00:00.000Z"),
     updatedAt: now(),
   });
+  batch.set(aCol.doc(USERS.pete), {
+    userId: USERS.pete,
+    source: "google_calendar",
+    busyBlocks: [
+      {
+        start: "2026-03-24T11:00:00-07:00",
+        end: "2026-03-24T13:00:00-07:00",
+      },
+    ],
+    freeWindows: [
+      {
+        start: "2026-03-24T17:00:00-07:00",
+        end: "2026-03-24T20:00:00-07:00",
+        quality: "high",
+      },
+    ],
+    lastSyncedAt: fixed("2026-03-20T08:00:00.000Z"),
+    updatedAt: now(),
+  });
+  batch.set(aCol.doc(USERS.phil), {
+    userId: USERS.phil,
+    source: "google_calendar",
+    busyBlocks: [
+      {
+        start: "2026-03-24T15:00:00-07:00",
+        end: "2026-03-24T16:00:00-07:00",
+      },
+    ],
+    freeWindows: [
+      {
+        start: "2026-03-24T17:00:00-07:00",
+        end: "2026-03-24T21:00:00-07:00",
+        quality: "high",
+      },
+    ],
+    lastSyncedAt: fixed("2026-03-20T07:45:00.000Z"),
+    updatedAt: now(),
+  });
+  batch.set(aCol.doc(USERS.janet), {
+    userId: USERS.janet,
+    source: "google_calendar",
+    busyBlocks: [
+      {
+        start: "2026-03-24T11:00:00-07:00",
+        end: "2026-03-24T12:00:00-07:00",
+      },
+    ],
+    freeWindows: [
+      {
+        start: "2026-03-24T17:00:00-07:00",
+        end: "2026-03-24T20:00:00-07:00",
+        quality: "high",
+      },
+    ],
+    lastSyncedAt: fixed("2026-03-20T08:30:00.000Z"),
+    updatedAt: now(),
+  });
+  batch.set(aCol.doc(USERS.sarah), {
+    userId: USERS.sarah,
+    source: "google_calendar",
+    busyBlocks: [
+      {
+        start: "2026-03-24T09:00:00-07:00",
+        end: "2026-03-24T10:00:00-07:00",
+      },
+    ],
+    freeWindows: [
+      {
+        start: "2026-03-24T18:00:00-07:00",
+        end: "2026-03-24T21:00:00-07:00",
+        quality: "high",
+      },
+    ],
+    lastSyncedAt: fixed("2026-03-20T08:10:00.000Z"),
+    updatedAt: now(),
+  });
   batch.set(aCol.doc(USERS.tommy), {
     userId: USERS.tommy,
     source: "google_calendar",
     busyBlocks: [
       {
-        start: "2026-03-25T09:00:00-07:00",
-        end: "2026-03-25T12:00:00-07:00",
+        start: "2026-03-24T09:00:00-07:00",
+        end: "2026-03-24T12:00:00-07:00",
       },
     ],
     freeWindows: [
       {
-        start: "2026-03-25T14:00:00-07:00",
-        end: "2026-03-25T20:00:00-07:00",
-        quality: "medium",
+        start: "2026-03-24T17:00:00-07:00",
+        end: "2026-03-24T21:00:00-07:00",
+        quality: "high",
       },
     ],
     lastSyncedAt: fixed("2026-03-20T08:15:00.000Z"),
@@ -171,14 +338,13 @@ async function seed() {
   await batch.commit();
 
   console.log("Seeded Firestore MVP data:");
-  console.log(`  users/${USERS.tommy}, users/${USERS.rae}, users/${USERS.janet}`);
-  console.log(`  network/${NETWORK_ID}`);
-  console.log(`  events/${EVENT_ID}`);
+  console.log(`  Users: ${Object.values(USERS).join(", ")}`);
+  console.log(`  Network: network/{userId}/friends/{friendId}`);
+  console.log(`    - ${USERS.tommy}/friends/${USERS.rae}`);
+  console.log(`    - ${USERS.rae}/friends/{${USERS.pete},${USERS.janet},${USERS.phil},${USERS.sarah}}`);
+  console.log(`  Events: ${EVENT_ID}`);
   console.log(
-    `  events/${EVENT_ID}/participants/{${USERS.tommy},${USERS.rae},${USERS.janet}}`,
-  );
-  console.log(
-    `  events/${EVENT_ID}/availability/{${USERS.tommy},${USERS.rae}}`,
+    `  Availability for: ${[USERS.rae, USERS.tommy, USERS.janet, USERS.pete, USERS.phil, USERS.sarah].join(", ")}`,
   );
 }
 

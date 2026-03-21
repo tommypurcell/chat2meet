@@ -33,14 +33,9 @@ export type UserDoc = {
   updatedAt: FirestoreTimestamp;
 };
 
-/** `network/{connectionId}` */
+/** `network/{ownerUserId}/{memberId}` */
 export type NetworkConnectionDoc = {
-  ownerUserId: string;
-  memberUserId: string;
-  memberName: string;
-  memberEmail: string;
-  memberPhotoUrl: string;
-  relationStatus: "pending" | "accepted" | "blocked";
+  status: "pending" | "accepted" | "blocked";
   createdAt: FirestoreTimestamp;
   updatedAt: FirestoreTimestamp;
 };

@@ -6,31 +6,31 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    if (!body.ownerUserId || !body.memberUserId || !body.memberName || !body.memberEmail) {
-      return errorResponse("ownerUserId, memberUserId, memberName, and memberEmail are required", 400);
+    if (!body.ownerUserId || !body.memberUserId) {
+      return errorResponse("ownerUserId and memberUserId are required", 400);
     }
 
     const newConnection = {
-      ownerUserId: body.ownerUserId,
-      memberUserId: body.memberUserId,
-      memberName: body.memberName,
-      memberEmail: body.memberEmail,
-      memberPhotoUrl: body.memberPhotoUrl || "",
-      relationStatus: body.relationStatus || "pending",
+      status: body.status || "pending",
       ...timestamps(),
     };
 
-    const docRef = await collection("network").add(newConnection);
+    const docRef = collection("network")
+      .doc(body.ownerUserId)
+      .collection("friends")
+      .doc(body.memberUserId);
+
+    await docRef.set(newConnection);
     const doc = await docRef.get();
 
-    return successResponse({ id: doc.id, ...doc.data() }, 201);
+    return successResponse({ memberUserId: body.memberUserId, ...doc.data() }, 201);
   } catch (error) {
     console.error("Error creating connection:", error);
     return errorResponse("Failed to create connection");
   }
 }
 
-// GET /api/network - List connections for a user
+// GET /api/network - List friends for a user
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = request.nextUrl;
@@ -43,20 +43,24 @@ export async function GET(request: NextRequest) {
     }
 
     let query = collection("network")
-      .where("ownerUserId", "==", userId)
+      .doc(userId)
+      .collection("friends")
       .orderBy("createdAt", "desc")
       .limit(limit);
 
     if (status) {
-      query = query.where("relationStatus", "==", status);
+      query = query.where("status", "==", status);
     }
 
     const snapshot = await query.get();
-    const connections = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const friends = snapshot.docs.map(doc => ({
+      friendUserId: doc.id,
+      ...doc.data()
+    }));
 
-    return successResponse({ connections, count: connections.length, limit });
+    return successResponse({ friends, count: friends.length, limit });
   } catch (error) {
-    console.error("Error fetching connections:", error);
-    return errorResponse("Failed to fetch connections");
+    console.error("Error fetching friends:", error);
+    return errorResponse("Failed to fetch friends");
   }
 }

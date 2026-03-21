@@ -119,11 +119,11 @@ function ChatContent({
           ))}
         </div>
       ) : (
-        messages.map((msg) => (
-          <ChatMessage key={msg.id} role={msg.role}>
+        messages.map((msg, idx) => (
+          <ChatMessage key={`msg-${idx}`} role={msg.role}>
             {msg.parts
               ?.map((part: any, i: number) => {
-                if (part.type === "text") return <span key={i} className="whitespace-pre-wrap">{part.text}</span>;
+                if (part.type === "text") return <span key={`${idx}-${i}`} className="whitespace-pre-wrap">{part.text}</span>;
                 return null;
               })
               .filter(Boolean) || msg.content}

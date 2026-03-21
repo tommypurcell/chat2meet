@@ -1,20 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { useTheme } from "@/lib/theme";
 
-const MOCK_USER = {
-  name: "Rae",
-  email: "rae@example.com",
-  timezone: "America/Los_Angeles",
-  calendarConnected: true,
+type User = {
+  id: string;
+  name: string;
+  email: string;
+  timezone: string;
+  calendarConnected: boolean;
 };
 
 export default function ProfilePage() {
   const { theme, toggle } = useTheme();
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
   const [publicStatement, setPublicStatement] = useState(
     "I'm a creative professional interested in scheduling meetings with close friends and collaborators."
   );
@@ -22,6 +25,24 @@ export default function ProfilePage() {
     "I prefer morning meetings but I'm flexible for important discussions. My team knows I'm most productive between 9am-12pm."
   );
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const response = await fetch("/api/user");
+        if (response.ok) {
+          const userData = await response.json();
+          setUser(userData);
+        }
+      } catch (error) {
+        console.error("Failed to fetch user:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUser();
+  }, []);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -64,21 +85,25 @@ export default function ProfilePage() {
         <div className="border-b border-[var(--divider)] bg-[var(--bg-secondary)]">
           <div className="mx-auto flex max-w-4xl items-center gap-6 px-4 py-6 md:px-6">
             <div className="relative shrink-0">
-              <Avatar name={MOCK_USER.name} size={64} />
+              {loading ? (
+                <div className="h-16 w-16 rounded-full bg-[var(--bg-tertiary)]" />
+              ) : user ? (
+                <Avatar name={user.name} size={64} />
+              ) : null}
               <div className="absolute bottom-0 right-0 h-4 w-4 rounded-full border-2 border-[var(--bg-secondary)] bg-[var(--accent-primary)]" />
             </div>
             <div className="flex-1">
               <h1 className="text-2xl font-bold text-[var(--text-primary)]">
-                {MOCK_USER.name}
+                {user?.name || "Loading..."}
               </h1>
-              <p className="text-sm text-[var(--text-secondary)]">{MOCK_USER.email}</p>
+              <p className="text-sm text-[var(--text-secondary)]">{user?.email || ""}</p>
               <div className="mt-3 flex gap-6">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
                     Timezone
                   </p>
                   <p className="mt-1 text-sm text-[var(--text-primary)]">
-                    {MOCK_USER.timezone}
+                    {user?.timezone || "—"}
                   </p>
                 </div>
                 <div>
@@ -86,9 +111,9 @@ export default function ProfilePage() {
                     Calendar
                   </p>
                   <div className="mt-2 flex items-center gap-2">
-                    <div className={`h-2 w-2 rounded-full ${MOCK_USER.calendarConnected ? "bg-[var(--accent-primary)]" : "bg-[var(--text-tertiary)]"}`} />
+                    <div className={`h-2 w-2 rounded-full ${user?.calendarConnected ? "bg-[var(--accent-primary)]" : "bg-[var(--text-tertiary)]"}`} />
                     <p className="text-sm text-[var(--text-secondary)]">
-                      {MOCK_USER.calendarConnected ? "Connected" : "Not connected"}
+                      {user?.calendarConnected ? "Connected" : "Not connected"}
                     </p>
                   </div>
                 </div>

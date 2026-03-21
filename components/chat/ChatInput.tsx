@@ -39,7 +39,7 @@ export function ChatInput({
           onKeyDown={onKeyDown}
           placeholder={placeholder}
           rows={1}
-          className="min-h-[38px] max-h-[120px] flex-1 resize-none rounded-[20px] border border-[var(--input-border)] bg-[var(--input-bg)] px-4 py-[9px] text-base leading-[1.35] text-[var(--text-primary)] placeholder:text-[var(--input-placeholder)] focus:outline-none focus:border-[var(--border-focused)]"
+          className="min-h-[38px] max-h-[70px] flex-1 resize-none rounded-[20px] border border-[var(--input-border)] bg-[var(--input-bg)] px-4 py-[9px] text-base leading-[1.35] text-[var(--text-primary)] placeholder:text-[var(--input-placeholder)] focus:outline-none focus:border-[var(--border-focused)] overflow-y-auto"
         />
         <button
           type="submit"

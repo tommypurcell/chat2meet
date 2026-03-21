@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useChat } from "@ai-sdk/react";
 import { CalendarCell } from "@/components/ui/CalendarCell";
 import { TimeChip } from "@/components/ui/TimeChip";
@@ -170,17 +171,17 @@ export default function Home() {
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-4">
             <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">When2Meet</h2>
             <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
-              {theme === "dark" ? (
-                <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-                  <circle cx="10" cy="10" r="4" stroke="currentColor" strokeWidth="1.5" />
-                  <path d="M10 2V4M10 16V18M2 10H4M16 10H18M4.93 4.93L6.34 6.34M13.66 13.66L15.07 15.07M15.07 4.93L13.66 6.34M6.34 13.66L4.93 15.07" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              ) : (
-                <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-                  <path d="M17 11.35A7 7 0 118.65 3 5.5 5.5 0 0017 11.35z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              )}
-            </Button>
+                {theme === "dark" ? (
+                  <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                    <circle cx="10" cy="10" r="4" stroke="currentColor" strokeWidth="1.5" />
+                    <path d="M10 2V4M10 16V18M2 10H4M16 10H18M4.93 4.93L6.34 6.34M13.66 13.66L15.07 15.07M15.07 4.93L13.66 6.34M6.34 13.66L4.93 15.07" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                    <path d="M17 11.35A7 7 0 118.65 3 5.5 5.5 0 0017 11.35z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </Button>
           </div>
 
           {/* New group button */}
@@ -227,13 +228,13 @@ export default function Home() {
 
           {/* User */}
           <div className="border-t border-[var(--divider)] p-3">
-            <div className="flex items-center gap-2 rounded-lg px-2 py-2">
+            <Link href="/profile" className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-[var(--bg-tertiary)] transition-colors">
               <Avatar name="Rae" size={32} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-[var(--text-primary)]">Rae</p>
                 <p className="truncate text-[11px] text-[var(--text-tertiary)]">Free plan</p>
               </div>
-            </div>
+            </Link>
           </div>
         </div>
 
@@ -362,17 +363,17 @@ export default function Home() {
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-4">
             <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">When2Meet</h2>
             <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
-              {theme === "dark" ? (
-                <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-                  <circle cx="10" cy="10" r="4" stroke="currentColor" strokeWidth="1.5" />
-                  <path d="M10 2V4M10 16V18M2 10H4M16 10H18M4.93 4.93L6.34 6.34M13.66 13.66L15.07 15.07M15.07 4.93L13.66 6.34M6.34 13.66L4.93 15.07" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              ) : (
-                <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-                  <path d="M17 11.35A7 7 0 118.65 3 5.5 5.5 0 0017 11.35z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              )}
-            </Button>
+                {theme === "dark" ? (
+                  <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                    <circle cx="10" cy="10" r="4" stroke="currentColor" strokeWidth="1.5" />
+                    <path d="M10 2V4M10 16V18M2 10H4M16 10H18M4.93 4.93L6.34 6.34M13.66 13.66L15.07 15.07M15.07 4.93L13.66 6.34M6.34 13.66L4.93 15.07" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+                    <path d="M17 11.35A7 7 0 118.65 3 5.5 5.5 0 0017 11.35z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </Button>
           </div>
           <div className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 pt-3 pb-4">
             {MEETING_GROUPS.map((g) => (
@@ -455,8 +456,7 @@ export default function Home() {
         {/* Nav */}
         <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-3">
           <h1 className="text-lg font-bold text-[var(--text-primary)]">When2Meet</h1>
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
+          <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
               {theme === "dark" ? (
                 <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
                   <circle cx="10" cy="10" r="4" stroke="currentColor" strokeWidth="1.5" />
@@ -468,7 +468,6 @@ export default function Home() {
                 </svg>
               )}
             </Button>
-          </div>
         </div>
 
         {/* Content */}

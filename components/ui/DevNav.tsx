@@ -10,6 +10,7 @@ const ROUTES = [
   { href: "/onboarding", label: "1. Sign Up" },
   { href: "/onboarding/preferences", label: "2. Preferences" },
   { href: "/", label: "3. Home" },
+  { href: "/network", label: "4. Network" },
   { href: "/invite/demo", label: "7. Invite" },
   { href: "/join/demo", label: "8. Join Gate" },
   { href: "/event/demo", label: "9. Event Detail" },

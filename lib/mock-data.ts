@@ -138,3 +138,18 @@ export const MARCH_DATES = [
   { day: 27, events: true },
   { day: 28, events: false },
 ];
+
+export interface Friend {
+  id: string;
+  name: string;
+  email: string;
+  status: "accepted" | "pending";
+}
+
+export const MOCK_FRIENDS: Friend[] = [
+  { id: "f1", name: "Pete", email: "pete@example.com", status: "accepted" },
+  { id: "f2", name: "Janet", email: "janet@example.com", status: "accepted" },
+  { id: "f3", name: "Sarah", email: "sarah@example.com", status: "accepted" },
+  { id: "f4", name: "Alex", email: "alex@example.com", status: "pending" },
+  { id: "f5", name: "Jordan", email: "jordan@example.com", status: "pending" },
+];

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -46,7 +47,16 @@ export default function NetworkPage() {
     <div className="flex min-h-[100dvh] flex-col bg-[var(--bg-primary)]">
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-6 py-4">
-        <h1 className="text-2xl font-bold">Network</h1>
+        <div className="flex items-center gap-3">
+          <Link href="/">
+            <Button variant="ghost" size="icon" aria-label="Back">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </Button>
+          </Link>
+          <h1 className="text-2xl font-bold">Network</h1>
+        </div>
         <Button
           variant="primary"
           size="sm"

@@ -34,9 +34,16 @@ export default function ProfilePage() {
     <div className="flex h-[100dvh] w-full flex-col bg-[var(--bg-primary)] text-[var(--text-primary)]">
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-4 md:px-6">
-        <Link href="/" className="text-lg font-semibold hover:opacity-75">
-          When2Meet
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link href="/">
+            <Button variant="ghost" size="icon" aria-label="Back">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </Button>
+          </Link>
+          <h1 className="text-lg font-semibold">Profile</h1>
+        </div>
         <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
           {theme === "dark" ? (
             <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
@@ -87,9 +94,6 @@ export default function ProfilePage() {
                 </div>
               </div>
             </div>
-            <Link href="/" className="shrink-0 text-sm text-[var(--text-link)] hover:opacity-75 transition-opacity">
-              ← Back
-            </Link>
           </div>
         </div>
 

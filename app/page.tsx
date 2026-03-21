@@ -227,20 +227,13 @@ export default function Home() {
           </div>
 
           {/* User */}
-          <div className="border-t border-[var(--divider)] p-3 space-y-2">
+          <div className="border-t border-[var(--divider)] p-3">
             <Link href="/profile" className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-[var(--bg-tertiary)] transition-colors">
               <Avatar name="Rae" size={32} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-[var(--text-primary)]">Rae</p>
                 <p className="truncate text-[11px] text-[var(--text-tertiary)]">Free plan</p>
               </div>
-            </Link>
-            <Link href="/network" className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-[var(--bg-tertiary)] transition-colors text-[var(--text-secondary)]">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" className="shrink-0">
-                <circle cx="12" cy="8" r="3" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M6 20c0-3 2-5 6-5s6 2 6 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-              <span className="text-sm font-medium">Network</span>
             </Link>
           </div>
         </div>
@@ -254,19 +247,13 @@ export default function Home() {
             </h1>
             <div className="flex items-center gap-2">
               <Link href="/network">
-                <Button variant="ghost" size="sm">
+                <Button variant="secondary" size="sm">
                   Network
                 </Button>
               </Link>
-              {chatStarted ? (
+              {chatStarted && (
                 <Button variant="ghost" size="sm" onClick={() => {}}>
                   Back to calendar
-                </Button>
-              ) : (
-                <Button variant="ghost" size="icon" aria-label="Add event">
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                    <path d="M10 4V16M4 10H16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
                 </Button>
               )}
             </div>
@@ -414,18 +401,11 @@ export default function Home() {
               </button>
             ))}
           </div>
-          <div className="border-t border-[var(--divider)] p-3 space-y-2">
+          <div className="border-t border-[var(--divider)] p-3">
             <div className="flex items-center gap-2 px-2 py-1">
               <Avatar name="Rae" size={28} />
               <span className="text-sm font-medium text-[var(--text-primary)]">Rae</span>
             </div>
-            <Link href="/network" className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-[var(--bg-tertiary)] transition-colors text-[var(--text-secondary)]">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="shrink-0">
-                <circle cx="12" cy="8" r="3" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M6 20c0-3 2-5 6-5s6 2 6 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-              <span className="text-xs font-medium">Network</span>
-            </Link>
           </div>
         </div>
 

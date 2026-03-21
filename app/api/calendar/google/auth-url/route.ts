@@ -13,6 +13,7 @@ export async function GET() {
 
     const scopes = [
       "https://www.googleapis.com/auth/calendar.events.readonly",
+      "https://www.googleapis.com/auth/userinfo.email", // Get user email
     ];
 
     const url = oauth2Client.generateAuthUrl({

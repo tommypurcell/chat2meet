@@ -32,11 +32,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get user's email from Google
-    oauth2Client.setCredentials(tokens);
-    const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
-    const userInfo = await oauth2.userinfo.get();
-    const email = userInfo.data.email || "";
+    // Decode ID token to get email (if available)
+    let email = "";
+    if (tokens.id_token) {
+      try {
+        // ID token is a JWT - decode the payload
+        const payload = JSON.parse(
+          Buffer.from(tokens.id_token.split(".")[1], "base64").toString()
+        );
+        email = payload.email || "";
+      } catch (e) {
+        console.warn("Could not decode id_token:", e);
+      }
+    }
 
     // Prepare calendar account data
     const ts = timestamps();

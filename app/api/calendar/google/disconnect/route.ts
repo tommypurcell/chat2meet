@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb, getServerTimestamp } from "@/lib/firebase-admin";
+import { collection, timestamps } from "@/lib/api-helpers";
 
 /**
  * POST /api/calendar/google/disconnect
@@ -20,30 +20,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get user document
-    const db = getDb();
-    const userRef = db.collection("users").doc(userId);
-    const userDoc = await userRef.get();
+    // Get all Google calendar accounts for this user
+    const accountsSnapshot = await collection("users")
+      .doc(userId)
+      .collection("calendarAccounts")
+      .where("provider", "==", "google")
+      .get();
 
-    if (!userDoc.exists) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    if (accountsSnapshot.empty) {
+      return NextResponse.json(
+        { success: true, message: "No Google Calendar connection found" },
+        { status: 200 }
+      );
     }
 
-    // Remove Google Calendar connection
-    await userRef.update({
-      googleCalendar: null,
+    // Delete all Google calendar account documents
+    const batch = collection("users").firestore.batch();
+    accountsSnapshot.docs.forEach((doc) => {
+      batch.delete(doc.ref);
+    });
+    await batch.commit();
+
+    // Update user document to reflect disconnection
+    const ts = timestamps();
+    await collection("users").doc(userId).update({
       calendarConnected: false,
-      updatedAt: getServerTimestamp(),
+      connectedCalendars: [],
+      lastCalendarSync: null,
+      updatedAt: ts.updatedAt,
     });
 
     return NextResponse.json({
       success: true,
       message: "Google Calendar disconnected successfully",
+      deletedAccounts: accountsSnapshot.size,
     });
   } catch (error) {
     console.error("Error disconnecting Google Calendar:", error);
     return NextResponse.json(
-      { error: "Failed to disconnect Google Calendar" },
+      {
+        error: "Failed to disconnect Google Calendar",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
       { status: 500 }
     );
   }

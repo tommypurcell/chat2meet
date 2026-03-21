@@ -6,7 +6,9 @@ interface GoogleCalendarConnectProps {
   userId: string;
 }
 
-export function GoogleCalendarConnect({ userId }: GoogleCalendarConnectProps) {
+export function GoogleCalendarConnect({
+  userId,
+}: GoogleCalendarConnectProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

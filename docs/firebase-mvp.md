@@ -1,6 +1,20 @@
 # Firebase MVP (Firestore)
 
+Index: [docs/README.md](./README.md). HTTP mapping: [api.md](./api.md).
+
 Service account setup is separate from this doc. Here: **collections and fields** only.
+
+## Seed dummy data
+
+```bash
+npm run db:seed
+```
+
+**Credentials:** Same rules as the Next.js API — see [setup.md](./setup.md) and `lib/firebase-credential.ts`. Typically `FIREBASE_SERVICE_ACCOUNT_FILE=./firebase-service-account.json` or Application Default Credentials.
+
+The seed loads `.env` via `scripts/load-env.ts`, then uses `getDb()` from `lib/firebase-admin.ts` (identical to route handlers).
+
+Creates `users`, `network`, `events/event_demo_pickleball`, participants, and availability (see `scripts/seed-firestore.ts`). Re-running overwrites those document IDs.
 
 ## Collections
 

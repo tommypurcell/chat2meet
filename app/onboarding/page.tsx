@@ -1,7 +1,8 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { useEffect, useState } from "react";
+import { DefaultChatTransport } from "ai";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
@@ -12,10 +13,13 @@ import { useAuth } from "@/lib/auth-context";
 export default function OnboardingPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const [onboardingDone, setOnboardingDone] = useState(false);
+  const transport = useMemo(() => new DefaultChatTransport({ api: "/api/onboarding/chat" }), []);
   const { messages, sendMessage, status } = useChat({
+    transport,
     onToolCall({ toolCall }) {
       if (toolCall.toolName === "completeOnboarding") {
-        setTimeout(() => router.push("/"), 2000);
+        setOnboardingDone(true);
       }
     },
   });
@@ -32,22 +36,8 @@ export default function OnboardingPage() {
   }, []);
 
   function handleSendMessage(text: string) {
-    sendMessage({ text });
+    sendMessage({ parts: [{ type: "text", text }] });
   }
-
-  // Helper to extract text from a message
-  const getMessageText = (msg: any) => {
-    if (!msg.parts) return msg.content || "";
-    return msg.parts
-      .filter((p: any) => p.type === "text")
-      .map((p: any) => p.text)
-      .join(" ");
-  };
-
-  const hasCalendarOption = messages.some(m => {
-    const text = getMessageText(m).toLowerCase();
-    return m.role === "assistant" && text.includes("calendar") && !text.includes("preferences");
-  });
 
   return (
     <div className="flex h-[100dvh] w-full flex-col bg-[var(--bg-primary)] text-[var(--text-primary)]">
@@ -61,7 +51,7 @@ export default function OnboardingPage() {
               </svg>
             </Button>
           </Link>
-          <h1 className="text-xl font-bold">Welcome to Chat2meet, {user?.displayName || "new user"}!</h1>
+          <h1 className="text-xl font-bold">Welcome to Chat2meet{user?.displayName ? `, ${user.displayName}` : ""}!</h1>
         </div>
       </div>
 
@@ -71,47 +61,56 @@ export default function OnboardingPage() {
           {messages.length === 0 && !isLoading && (
             <div className="flex h-full flex-col items-center justify-center text-center px-6">
               <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--accent-primary)] shadow-[var(--glow-primary)]">
-                <svg className="h-8 w-8 text-white" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke="currentColor" strokeWidth="2" />
-                  <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="currentColor" strokeWidth="2" />
+                <svg className="h-8 w-8 text-[var(--bubble-sender-text)]" viewBox="0 0 24 24" fill="none">
+                  <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </div>
               <h2 className="text-xl font-bold mb-2">Let&apos;s get you set up</h2>
               <p className="text-[var(--text-secondary)] mb-8">
-                I&apos;ll help you connect your calendar and set your meeting preferences in just a few seconds.
+                I&apos;ll ask a few quick questions to learn your scheduling preferences.
               </p>
-              <Button size="lg" onClick={() => handleSendMessage("Hi, I'm ready to set up my account!")}>
-                Start Onboarding
+              <Button size="lg" onClick={() => handleSendMessage("Hi! I'm ready to set up my account.")}>
+                Start Setup
               </Button>
             </div>
           )}
-          
-          <ChatContent 
-            messages={messages} 
-            isLoading={isLoading} 
+
+          <ChatContent
+            messages={messages}
+            isLoading={isLoading}
             selectedSlot={null}
             onSelectSlot={() => {}}
           />
 
-          {/* Special UI for Calendar Connection */}
-          {hasCalendarOption && (
+          {/* Calendar connect card — shown after onboarding is done */}
+          {onboardingDone && (
             <div className="mt-4 px-4 pb-4">
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-tertiary)] p-6 text-center">
-                <h3 className="font-semibold mb-2">Google Calendar</h3>
-                <p className="text-sm text-[var(--text-secondary)] mb-4">Connect to automatically sync your free/busy times.</p>
-                {calendarUrl ? (
-                  <Link href={calendarUrl}>
-                    <Button variant="primary" className="w-full">Connect Now</Button>
-                  </Link>
-                ) : (
-                  <Button variant="primary" className="w-full" disabled>Loading...</Button>
-                )}
-                <button 
-                  onClick={() => handleSendMessage("I'll skip calendar for now. Let's talk about preferences.")}
-                  className="mt-3 text-xs text-[var(--text-tertiary)] hover:underline"
-                >
-                  Skip for now
-                </button>
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--bubble-action)] text-[var(--text-link)]">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="2" />
+                    <path d="M3 9h18M8 2v4M16 2v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                </div>
+                <h3 className="font-semibold text-[var(--text-primary)] mb-2">Connect Google Calendar</h3>
+                <p className="text-sm text-[var(--text-secondary)] mb-4">
+                  Sync your calendar so Chat2meet can find your free times automatically.
+                </p>
+                <div className="flex flex-col gap-2">
+                  {calendarUrl ? (
+                    <a href={calendarUrl}>
+                      <Button variant="primary" className="w-full">Connect Now</Button>
+                    </a>
+                  ) : (
+                    <Button variant="primary" className="w-full" disabled>Loading...</Button>
+                  )}
+                  <button
+                    onClick={() => router.push("/")}
+                    className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors"
+                  >
+                    Skip — I&apos;ll do this later
+                  </button>
+                </div>
               </div>
             </div>
           )}

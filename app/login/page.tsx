@@ -55,29 +55,81 @@ function LoginInner() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-[var(--bg-primary)] px-4 text-[var(--text-primary)]">
-      <div className="w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] p-8 shadow-[var(--shadow-card)]">
-        <h1 className="text-2xl font-bold tracking-tight">Sign in</h1>
-        <p className="mt-2 text-sm text-[var(--text-secondary)]">
-          Continue with Google (Firebase Authentication).
-        </p>
-
-        {error && (
-          <div
-            className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200"
-            role="alert"
-          >
-            {error}
+      <div className="w-full max-w-md">
+        {/* Hero / branding */}
+        <div className="mb-8 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--accent-primary)]" style={{ boxShadow: "var(--glow-primary)" }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="var(--bubble-sender-text)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </div>
-        )}
+          <h1 className="text-3xl font-bold tracking-tight">Chat2meet</h1>
+          <p className="mt-2 text-[15px] text-[var(--text-secondary)]">
+            Schedule meetings through conversation
+          </p>
+        </div>
 
-        <div className="mt-8">
+        {/* Features */}
+        <div className="mb-8 flex flex-col gap-3">
+          <div className="flex items-start gap-3 rounded-xl bg-[var(--bg-secondary)] px-4 py-3">
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--bubble-action)] text-[var(--text-link)]">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-[var(--text-primary)]">Chat to schedule</p>
+              <p className="text-xs text-[var(--text-tertiary)]">Just tell the AI who you want to meet — it handles the rest</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3 rounded-xl bg-[var(--bg-secondary)] px-4 py-3">
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--bubble-action)] text-[var(--text-link)]">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="2" />
+                <path d="M3 9h18M8 2v4M16 2v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-[var(--text-primary)]">Google Calendar sync</p>
+              <p className="text-xs text-[var(--text-tertiary)]">Connects to your calendar to find free times automatically</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3 rounded-xl bg-[var(--bg-secondary)] px-4 py-3">
+            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--bubble-action)] text-[var(--text-link)]">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <circle cx="7" cy="8" r="2.5" stroke="currentColor" strokeWidth="2" />
+                <circle cx="17" cy="8" r="2.5" stroke="currentColor" strokeWidth="2" />
+                <circle cx="12" cy="17" r="2.5" stroke="currentColor" strokeWidth="2" />
+                <path d="M9.5 10l2.5 5M14.5 10l-2.5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-[var(--text-primary)]">Private preferences</p>
+              <p className="text-xs text-[var(--text-tertiary)]">Set hidden rules like "no meetings before 10 AM" that the agent respects</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Sign-in card */}
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] p-6 shadow-[var(--shadow-card)]">
+          {error && (
+            <div
+              className="mb-4 rounded-lg border border-[var(--accent-danger)]/40 bg-[var(--accent-danger)]/10 px-3 py-2 text-sm text-[var(--accent-danger)]"
+              role="alert"
+            >
+              {error}
+            </div>
+          )}
+
           <button
             type="button"
             onClick={handleGoogleSignIn}
             disabled={busy}
             className={cn(
-              "inline-flex w-full items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-base font-semibold tracking-[-0.2px] transition-opacity duration-150",
-              "bg-[var(--accent-primary)] text-white shadow-[var(--glow-soft)] hover:opacity-90",
+              "inline-flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-base font-semibold tracking-[-0.2px] transition-opacity duration-150",
+              "bg-[var(--accent-primary)] text-[var(--bubble-sender-text)] shadow-[var(--glow-soft)] hover:opacity-90",
               "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--border-focused)]",
               "disabled:pointer-events-none disabled:opacity-40",
             )}
@@ -102,13 +154,11 @@ function LoginInner() {
             </svg>
             {busy ? "Signing in…" : "Continue with Google"}
           </button>
-        </div>
 
-        <p className="mt-6 text-center text-xs text-[var(--text-tertiary)]">
-          <Link href="/" className="text-[var(--text-link)] hover:underline">
-            Back to app
-          </Link>
-        </p>
+          <p className="mt-4 text-center text-xs text-[var(--text-tertiary)]">
+            Sign in to start scheduling with your friends
+          </p>
+        </div>
       </div>
     </div>
   );

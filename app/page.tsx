@@ -43,7 +43,7 @@ const ROUTES = [
 /* ── Main page ────────────────────────────────────────── */
 export default function Home() {
   const { theme, toggle } = useTheme();
-  const { user, refresh } = useAuth();
+  const { user, loading: authLoading, refresh } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const { messages, sendMessage, status } = useChat();
@@ -70,6 +70,25 @@ export default function Home() {
     await fetch("/api/auth/signout", { method: "POST" });
     await refresh();
     router.push("/login");
+  }
+
+  // Show loading state while checking auth
+  if (authLoading) {
+    return (
+      <div className="flex h-[100dvh] w-full items-center justify-center bg-[var(--bg-primary)]">
+        <div className="text-[var(--text-tertiary)] text-sm">Loading...</div>
+      </div>
+    );
+  }
+
+  // Redirect to sign-in page when not authenticated
+  if (!user) {
+    router.push("/login");
+    return (
+      <div className="flex h-[100dvh] w-full items-center justify-center bg-[var(--bg-primary)]">
+        <div className="text-[var(--text-tertiary)] text-sm">Redirecting...</div>
+      </div>
+    );
   }
 
   return (
@@ -203,13 +222,20 @@ export default function Home() {
 
           {/* User */}
           <div className="border-t border-[var(--divider)] p-3">
-            <Link href="/profile" className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-[var(--bg-tertiary)] transition-colors">
-              <Avatar name="Rae" size={32} />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-[var(--text-primary)]">Rae</p>
-                <p className="truncate text-[11px] text-[var(--text-tertiary)]">Free plan</p>
-              </div>
-            </Link>
+            <div className="flex items-center justify-between px-2 py-2">
+              <Link href="/profile" className="flex items-center gap-2 min-w-0 flex-1 hover:opacity-80 transition-opacity">
+                <Avatar name={user?.displayName || user?.email || "User"} size={32} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-[var(--text-primary)]">{user?.displayName || user?.email?.split("@")[0] || "User"}</p>
+                  <p className="truncate text-[11px] text-[var(--text-tertiary)]">Free plan</p>
+                </div>
+              </Link>
+              <Button variant="ghost" size="icon" onClick={handleSignOut} aria-label="Sign out">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -485,6 +511,11 @@ export default function Home() {
                   <path d="M17 11.35A7 7 0 118.65 3 5.5 5.5 0 0017 11.35z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               )}
+            </Button>
+            <Button variant="ghost" size="icon" onClick={handleSignOut} aria-label="Sign out">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </Button>
           </div>
         </div>

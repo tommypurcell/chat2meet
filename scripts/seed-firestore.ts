@@ -40,6 +40,7 @@ async function seed() {
     timezone: "America/Los_Angeles",
     calendarConnected: true,
     ghostMode: false,
+    publicStatement: "I love playing sports and organizing group activities. Always up for pickleball!",
     createdAt: fixed("2026-03-01T12:00:00.000Z"),
     updatedAt: now(),
   });
@@ -50,6 +51,7 @@ async function seed() {
     timezone: "America/Los_Angeles",
     calendarConnected: true,
     ghostMode: false,
+    publicStatement: "I'm a creative professional interested in scheduling meetings with close friends and collaborators.",
     createdAt: fixed("2026-03-02T15:30:00.000Z"),
     updatedAt: now(),
   });
@@ -60,6 +62,7 @@ async function seed() {
     timezone: "America/New_York",
     calendarConnected: false,
     ghostMode: false,
+    publicStatement: "East Coast based. Prefer morning meetings when possible.",
     createdAt: fixed("2026-03-03T09:00:00.000Z"),
     updatedAt: now(),
   });
@@ -70,6 +73,7 @@ async function seed() {
     timezone: "America/Los_Angeles",
     calendarConnected: true,
     ghostMode: false,
+    publicStatement: "Casual athlete, love outdoor activities. Flexible with scheduling.",
     createdAt: fixed("2026-03-04T10:00:00.000Z"),
     updatedAt: now(),
   });
@@ -80,6 +84,7 @@ async function seed() {
     timezone: "America/Los_Angeles",
     calendarConnected: true,
     ghostMode: false,
+    publicStatement: "Fitness enthusiast. Looking for regular pickleball partners.",
     createdAt: fixed("2026-03-05T11:00:00.000Z"),
     updatedAt: now(),
   });
@@ -90,6 +95,7 @@ async function seed() {
     timezone: "America/Los_Angeles",
     calendarConnected: true,
     ghostMode: false,
+    publicStatement: "Coffee enthusiast. Available for casual meetings most afternoons.",
     createdAt: fixed("2026-03-06T09:30:00.000Z"),
     updatedAt: now(),
   });

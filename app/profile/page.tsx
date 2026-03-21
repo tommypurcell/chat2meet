@@ -12,6 +12,11 @@ type User = {
   email: string;
   timezone: string;
   calendarConnected: boolean;
+  friends?: Array<{
+    id: string;
+    name: string;
+    email: string;
+  }>;
 };
 
 export default function ProfilePage() {
@@ -123,7 +128,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Statements Section */}
-        <div className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 md:px-6">
+        <div className="mx-auto w-full max-w-4xl px-4 py-8 md:px-6">
           <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-6">Your Statements</h2>
           <div className="grid gap-6 lg:grid-cols-2">
             {/* Public Statement */}

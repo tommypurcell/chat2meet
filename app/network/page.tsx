@@ -1,225 +1,142 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { AddFriendsModal } from "@/components/events/AddFriendsModal";
-import { MOCK_FRIENDS } from "@/lib/mock-data";
-import { cn } from "@/lib/utils";
-import type { Friend } from "@/lib/mock-data";
+import { Avatar } from "@/components/ui/Avatar";
+import { useTheme } from "@/lib/theme";
+
+type Friend = {
+  id: string;
+  name: string;
+  email: string;
+};
 
 export default function NetworkPage() {
-  const [friends, setFriends] = useState<Friend[]>(MOCK_FRIENDS);
-  const [modalOpen, setModalOpen] = useState(false);
+  const { theme, toggle } = useTheme();
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const acceptedFriends = friends.filter((f) => f.status === "accepted");
-  const pendingFriends = friends.filter((f) => f.status === "pending");
+  useEffect(() => {
+    const fetchFriends = async () => {
+      try {
+        const response = await fetch("/api/user");
+        if (response.ok) {
+          const data = await response.json();
+          setFriends(data.friends || []);
+        }
+      } catch (error) {
+        console.error("Failed to fetch friends:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  function handleRemoveFriend(id: string) {
-    setFriends(friends.filter((f) => f.id !== id));
-  }
-
-  function handleAcceptFriend(id: string) {
-    setFriends(
-      friends.map((f) =>
-        f.id === id ? { ...f, status: "accepted" as const } : f
-      )
-    );
-  }
-
-  function handleDeclineFriend(id: string) {
-    setFriends(friends.filter((f) => f.id !== id));
-  }
-
-  function handleInviteFriends(emails: string[]) {
-    const newFriends: Friend[] = emails.map((email, i) => ({
-      id: `f${friends.length + i}`,
-      name: email.split("@")[0],
-      email,
-      status: "pending",
-    }));
-    setFriends([...friends, ...newFriends]);
-  }
+    fetchFriends();
+  }, []);
 
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-[var(--bg-primary)]">
+    <div className="flex h-[100dvh] w-full flex-col bg-[var(--bg-primary)] text-[var(--text-primary)]">
       {/* Header */}
-      <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-6 py-4">
+      <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-4 md:px-6">
         <div className="flex items-center gap-3">
           <Link href="/">
             <Button variant="ghost" size="icon" aria-label="Back">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <path
+                  d="M19 12H5M12 19l-7-7 7-7"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
             </Button>
           </Link>
-          <h1 className="text-2xl font-bold">Network</h1>
+          <h1 className="text-lg font-semibold">Your Network</h1>
         </div>
         <Button
-          variant="primary"
-          size="sm"
-          onClick={() => setModalOpen(true)}
+          variant="ghost"
+          size="icon"
+          onClick={toggle}
+          aria-label="Toggle theme"
         >
-          Add friend
+          {theme === "dark" ? (
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="10" r="4" stroke="currentColor" strokeWidth="1.5" />
+              <path
+                d="M10 2V4M10 16V18M2 10H4M16 10H18M4.93 4.93L6.34 6.34M13.66 13.66L15.07 15.07M15.07 4.93L13.66 6.34M6.34 13.66L4.93 15.07"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          ) : (
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+              <path
+                d="M17 11.35A7 7 0 118.65 3 5.5 5.5 0 0017 11.35z"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          )}
         </Button>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-2xl px-6 py-8">
-          {friends.length === 0 ? (
-            <EmptyState onAddClick={() => setModalOpen(true)} />
+      <div className="flex flex-1 flex-col overflow-y-auto">
+        <div className="mx-auto w-full max-w-4xl px-4 py-8 md:px-6">
+          {loading ? (
+            <p className="text-center text-[var(--text-secondary)]">
+              Loading your network...
+            </p>
+          ) : friends.length === 0 ? (
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-8 text-center">
+              <p className="text-[var(--text-secondary)]">
+                You haven't added any friends yet.
+              </p>
+            </div>
           ) : (
-            <div className="flex flex-col gap-6">
-              {/* Friends section */}
-              {acceptedFriends.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Friends ({acceptedFriends.length})</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-col gap-3">
-                      {acceptedFriends.map((friend) => (
-                        <FriendRow
-                          key={friend.id}
-                          friend={friend}
-                          actions={
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleRemoveFriend(friend.id)}
-                            >
-                              Remove
-                            </Button>
-                          }
-                        />
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Pending section */}
-              {pendingFriends.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Pending ({pendingFriends.length})</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-col gap-3">
-                      {pendingFriends.map((friend) => (
-                        <FriendRow
-                          key={friend.id}
-                          friend={friend}
-                          actions={
-                            <div className="flex gap-2">
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => handleAcceptFriend(friend.id)}
-                              >
-                                Accept
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeclineFriend(friend.id)}
-                              >
-                                Decline
-                              </Button>
-                            </div>
-                          }
-                        />
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+            <div className="space-y-3">
+              {friends.map((friend) => (
+                <Link
+                  key={friend.id}
+                  href={`/profile/${friend.id}`}
+                  className="flex items-center gap-4 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-4 hover:bg-[var(--bg-tertiary)] transition-colors"
+                >
+                  <Avatar name={friend.name} size={48} />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-[var(--text-primary)]">
+                      {friend.name}
+                    </p>
+                    <p className="text-sm text-[var(--text-tertiary)]">
+                      {friend.email}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-[var(--text-tertiary)]">
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                    >
+                      <path
+                        d="M9 6l6 6-6 6"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </div>
+                </Link>
+              ))}
             </div>
           )}
         </div>
       </div>
-
-      {/* Modal */}
-      <AddFriendsModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onInvite={handleInviteFriends}
-        title="Add friends to your network"
-      />
-    </div>
-  );
-}
-
-function FriendRow({
-  friend,
-  actions,
-}: {
-  friend: Friend;
-  actions: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border)] px-3 py-3 hover:bg-[var(--bg-secondary)] transition-colors">
-      <div className="flex items-center gap-3 min-w-0 flex-1">
-        <Avatar name={friend.name} size={36} />
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-[var(--text-primary)]">
-            {friend.name}
-          </p>
-          <p className="text-xs text-[var(--text-tertiary)] truncate">
-            {friend.email}
-          </p>
-        </div>
-      </div>
-      <div className="shrink-0">{actions}</div>
-    </div>
-  );
-}
-
-function EmptyState({ onAddClick }: { onAddClick: () => void }) {
-  return (
-    <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-[var(--divider)] px-6 py-12 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--bg-secondary)]">
-        <svg
-          className="h-6 w-6 text-[var(--text-tertiary)]"
-          viewBox="0 0 24 24"
-          fill="none"
-          aria-hidden
-        >
-          <circle
-            cx="12"
-            cy="8"
-            r="3"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
-          <path
-            d="M6 20c0-3 2-5 6-5s6 2 6 5"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
-          <path
-            d="M20 12h2M2 12h2"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
-        </svg>
-      </div>
-      <div>
-        <h2 className="text-lg font-semibold text-[var(--text-primary)]">
-          No friends yet
-        </h2>
-        <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          Start building your network by adding friends
-        </p>
-      </div>
-      <Button variant="primary" onClick={onAddClick}>
-        Add your first friend
-      </Button>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { CalendarCell } from "@/components/ui/CalendarCell";
 import { TimeChip } from "@/components/ui/TimeChip";
 import { Button } from "@/components/ui/Button";
@@ -20,6 +20,26 @@ import {
   WEEK_DAYS,
   MARCH_DATES,
 } from "@/lib/mock-data";
+
+/* ── Fade-in wrapper ─────────────────────────────────── */
+function FadeIn({ children, className }: { children: React.ReactNode; className?: string }) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setVisible(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+  return (
+    <div
+      className={cn(
+        "transition-all duration-300 ease-out",
+        visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
 
 /* ── Invite preview card (Screen 6) ──────────────────── */
 function InvitePreview({ onClose }: { onClose: () => void }) {
@@ -112,10 +132,37 @@ export default function Home() {
   const [showInvitePreview, setShowInvitePreview] = useState(false);
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const [chatStarted, setChatStarted] = useState(false);
+  const [chatLabel, setChatLabel] = useState<string>("Chat");
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const visibleDates = MARCH_DATES.filter(
     (d) => d.day >= 16 && d.day <= 22,
   );
+
+  const activeGroupData = MEETING_GROUPS.find((g) => g.id === activeGroup);
+
+  function startChat(groupId?: string, label?: string) {
+    if (groupId) setActiveGroup(groupId);
+    setChatLabel(label || "Chat");
+    setChatStarted(true);
+    setSelectedSlot(null);
+    setShowInvitePreview(false);
+  }
+
+  function exitChat() {
+    setChatStarted(false);
+    setActiveGroup(null);
+    setChatLabel("Chat");
+    setSelectedSlot(null);
+    setShowInvitePreview(false);
+  }
+
+  // Auto-scroll chat to bottom when chat starts
+  useEffect(() => {
+    if (chatStarted && chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [chatStarted]);
 
   return (
     <div className="flex h-[100dvh] w-full bg-[var(--bg-primary)] text-[var(--text-primary)]">
@@ -163,10 +210,7 @@ export default function Home() {
               <button
                 key={g.id}
                 type="button"
-                onClick={() => {
-                  setActiveGroup(g.id);
-                  setChatStarted(true);
-                }}
+                onClick={() => startChat(g.id, g.name)}
                 className={cn(
                   "flex w-full items-start gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors cursor-pointer",
                   activeGroup === g.id
@@ -207,7 +251,7 @@ export default function Home() {
               {chatStarted ? "Select Availability" : "March 2026"}
             </h1>
             {chatStarted ? (
-              <Button variant="ghost" size="sm" onClick={() => setChatStarted(false)}>
+              <Button variant="ghost" size="sm" onClick={exitChat}>
                 Back to calendar
               </Button>
             ) : (
@@ -221,9 +265,9 @@ export default function Home() {
 
           {chatStarted ? (
             /* Availability grid (when2meet-style) */
-            <div className="flex-1 overflow-hidden p-4">
+            <FadeIn className="flex-1 overflow-hidden p-4">
               <AvailabilityGrid />
-            </div>
+            </FadeIn>
           ) : (
             /* Calendar */
             <div className="flex-1 overflow-y-auto p-6">
@@ -259,7 +303,7 @@ export default function Home() {
                       <button
                         key={s.title}
                         type="button"
-                        onClick={() => setChatStarted(true)}
+                        onClick={() => startChat(undefined, s.title)}
                         className="flex items-start gap-3 rounded-xl bg-[var(--bg-secondary)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-tertiary)] cursor-pointer"
                       >
                         <div className="min-w-0">
@@ -278,13 +322,28 @@ export default function Home() {
         {/* ── Right column: Chat ──────────────────────── */}
         <div className="flex w-[380px] shrink-0 flex-col bg-[var(--bg-sheet)] xl:w-[420px]">
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-5 py-4">
-            <h2 className="text-lg font-semibold">Chat</h2>
-            <Avatar name="W" size={28} />
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold truncate">{chatLabel}</h2>
+              {activeGroupData && (
+                <p className="text-xs text-[var(--text-tertiary)] truncate">
+                  {activeGroupData.members.join(", ")}
+                </p>
+              )}
+            </div>
+            {activeGroupData ? (
+              <div className="flex -space-x-1.5">
+                {activeGroupData.members.slice(0, 3).map((m) => (
+                  <Avatar key={m} name={m} size={24} />
+                ))}
+              </div>
+            ) : (
+              <Avatar name="W" size={28} />
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto overscroll-contain py-2">
             {!chatStarted ? (
-              <div className="flex flex-col items-center justify-center h-full px-6 text-center">
+              <FadeIn className="flex flex-col items-center justify-center h-full px-6 text-center">
                 <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--bg-tertiary)]">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
                     <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="var(--text-tertiary)" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
@@ -293,20 +352,23 @@ export default function Home() {
                 <p className="text-sm font-medium text-[var(--text-secondary)]">
                   Select a group or type a message to start scheduling
                 </p>
-              </div>
+              </FadeIn>
             ) : (
-              <ChatContent
-                selectedSlot={selectedSlot}
-                showInvitePreview={showInvitePreview}
-                onSelectSlot={setSelectedSlot}
-                onShowInvite={() => setShowInvitePreview(true)}
-                onCloseInvite={() => setShowInvitePreview(false)}
-              />
+              <FadeIn>
+                <ChatContent
+                  selectedSlot={selectedSlot}
+                  showInvitePreview={showInvitePreview}
+                  onSelectSlot={setSelectedSlot}
+                  onShowInvite={() => setShowInvitePreview(true)}
+                  onCloseInvite={() => setShowInvitePreview(false)}
+                />
+                <div ref={chatEndRef} />
+              </FadeIn>
             )}
           </div>
 
           <ChatInput
-            onSend={() => setChatStarted(true)}
+            onSend={() => startChat()}
             placeholder="Schedule a meeting..."
           />
         </div>
@@ -338,10 +400,7 @@ export default function Home() {
               <button
                 key={g.id}
                 type="button"
-                onClick={() => {
-                  setActiveGroup(g.id);
-                  setChatStarted(true);
-                }}
+                onClick={() => startChat(g.id, g.name)}
                 className={cn(
                   "flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors cursor-pointer",
                   activeGroup === g.id
@@ -411,7 +470,22 @@ export default function Home() {
       <div className="relative flex flex-1 flex-col md:hidden">
         {/* Nav */}
         <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-3">
-          <h1 className="text-lg font-bold text-[var(--text-primary)]">When2Meet</h1>
+          <div className="flex items-center gap-2">
+            {chatStarted && (
+              <button
+                type="button"
+                onClick={exitChat}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-secondary)] cursor-pointer"
+              >
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                  <path d="M12 4L6 10L12 16" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            )}
+            <h1 className="text-lg font-bold text-[var(--text-primary)]">
+              {chatStarted ? chatLabel : "Chat2Meet"}
+            </h1>
+          </div>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
               {theme === "dark" ? (

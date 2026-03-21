@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useChat } from "@ai-sdk/react";
 import { CalendarCell } from "@/components/ui/CalendarCell";
 import { TimeChip } from "@/components/ui/TimeChip";
 import { Button } from "@/components/ui/Button";
@@ -58,25 +59,56 @@ function InvitePreview({ onClose }: { onClose: () => void }) {
 
 /* ── Chat content (messages + time slots + invite) ───── */
 function ChatContent({
+  messages,
+  isLoading,
   selectedSlot,
   showInvitePreview,
   onSelectSlot,
   onShowInvite,
   onCloseInvite,
+  onSuggestionClick,
 }: {
+  messages: any[];
+  isLoading: boolean;
   selectedSlot: string | null;
   showInvitePreview: boolean;
   onSelectSlot: (id: string) => void;
   onShowInvite: () => void;
   onCloseInvite: () => void;
+  onSuggestionClick?: (text: string) => void;
 }) {
   return (
     <div>
-      {SAMPLE_CHAT_MESSAGES.map((msg) => (
-        <ChatMessage key={msg.id} role={msg.role}>
-          {msg.content}
-        </ChatMessage>
-      ))}
+      {messages.length === 0 && !isLoading ? (
+        // Show empty state with suggestions (only if no messages AND not loading)
+        <div className="flex flex-col gap-2 px-4 py-4">
+          <p className="text-sm text-[var(--text-secondary)]">Start a conversation to find meeting times</p>
+          {CHAT_SUGGESTIONS.map((s) => (
+            <button
+              key={s.title}
+              type="button"
+              className="flex items-start gap-3 rounded-xl bg-[var(--bg-secondary)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-tertiary)]"
+              onClick={() => onSuggestionClick?.(s.body)}
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-[var(--text-primary)]">{s.title}</p>
+                <p className="text-xs text-[var(--text-tertiary)]">{s.body}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      ) : (
+        messages.map((msg) => (
+          <ChatMessage key={msg.id} role={msg.role}>
+            {msg.parts
+              ?.map((part: any, i: number) => {
+                if (part.type === "text") return <span key={i} className="whitespace-pre-wrap">{part.text}</span>;
+                return null;
+              })
+              .filter(Boolean) || msg.content}
+          </ChatMessage>
+        ))
+      )}
 
       <div className="flex flex-wrap gap-2 px-4 py-2">
         {SAMPLE_TIME_SLOTS.map((slot) => (
@@ -107,15 +139,22 @@ function ChatContent({
 /* ── Main page ────────────────────────────────────────── */
 export default function Home() {
   const { theme, toggle } = useTheme();
+  const { messages, sendMessage, status } = useChat();
+  const isLoading = status === "submitted" || status === "streaming";
+  const chatStarted = messages.length > 0;
+
   const [selectedDay, setSelectedDay] = useState(21);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [showInvitePreview, setShowInvitePreview] = useState(false);
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
-  const [chatStarted, setChatStarted] = useState(false);
 
   const visibleDates = MARCH_DATES.filter(
     (d) => d.day >= 16 && d.day <= 22,
   );
+
+  function handleSendMessage(text: string) {
+    sendMessage({ parts: [{ type: "text", text }] });
+  }
 
   return (
     <div className="flex h-[100dvh] w-full bg-[var(--bg-primary)] text-[var(--text-primary)]">
@@ -165,7 +204,6 @@ export default function Home() {
                 type="button"
                 onClick={() => {
                   setActiveGroup(g.id);
-                  setChatStarted(true);
                 }}
                 className={cn(
                   "flex w-full items-start gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors cursor-pointer",
@@ -207,7 +245,7 @@ export default function Home() {
               {chatStarted ? "Select Availability" : "March 2026"}
             </h1>
             {chatStarted ? (
-              <Button variant="ghost" size="sm" onClick={() => setChatStarted(false)}>
+              <Button variant="ghost" size="sm" onClick={() => {}}>
                 Back to calendar
               </Button>
             ) : (
@@ -259,7 +297,7 @@ export default function Home() {
                       <button
                         key={s.title}
                         type="button"
-                        onClick={() => setChatStarted(true)}
+                        onClick={() => handleSendMessage(s.body)}
                         className="flex items-start gap-3 rounded-xl bg-[var(--bg-secondary)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-tertiary)] cursor-pointer"
                       >
                         <div className="min-w-0">
@@ -296,17 +334,20 @@ export default function Home() {
               </div>
             ) : (
               <ChatContent
+                messages={messages}
+                isLoading={isLoading}
                 selectedSlot={selectedSlot}
                 showInvitePreview={showInvitePreview}
                 onSelectSlot={setSelectedSlot}
                 onShowInvite={() => setShowInvitePreview(true)}
                 onCloseInvite={() => setShowInvitePreview(false)}
+                onSuggestionClick={handleSendMessage}
               />
             )}
           </div>
 
           <ChatInput
-            onSend={() => setChatStarted(true)}
+            onSend={handleSendMessage}
             placeholder="Schedule a meeting..."
           />
         </div>
@@ -340,7 +381,6 @@ export default function Home() {
                 type="button"
                 onClick={() => {
                   setActiveGroup(g.id);
-                  setChatStarted(true);
                 }}
                 className={cn(
                   "flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors cursor-pointer",
@@ -380,7 +420,7 @@ export default function Home() {
                   <button
                     key={s.title}
                     type="button"
-                    onClick={() => setChatStarted(true)}
+                    onClick={() => handleSendMessage(s.body)}
                     className="flex items-start gap-3 rounded-xl bg-[var(--bg-secondary)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-tertiary)] cursor-pointer"
                   >
                     <div className="min-w-0">
@@ -392,15 +432,18 @@ export default function Home() {
               </div>
             ) : (
               <ChatContent
+                messages={messages}
+                isLoading={isLoading}
                 selectedSlot={selectedSlot}
                 showInvitePreview={showInvitePreview}
                 onSelectSlot={setSelectedSlot}
                 onShowInvite={() => setShowInvitePreview(true)}
                 onCloseInvite={() => setShowInvitePreview(false)}
+                onSuggestionClick={handleSendMessage}
               />
             )}
           </div>
-          <ChatInput onSend={() => setChatStarted(true)} placeholder="Schedule a meeting..." />
+          <ChatInput onSend={handleSendMessage} placeholder="Schedule a meeting..." />
         </div>
       </div>
 
@@ -442,7 +485,7 @@ export default function Home() {
                     <button
                       key={s.title}
                       type="button"
-                      onClick={() => setChatStarted(true)}
+                      onClick={() => handleSendMessage(s.body)}
                       className="flex items-start gap-3 rounded-xl bg-[var(--bg-secondary)] px-3 py-3 text-left transition-colors hover:bg-[var(--bg-tertiary)] cursor-pointer"
                     >
                       <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--bubble-action)] text-[var(--text-link)]">
@@ -471,7 +514,6 @@ export default function Home() {
                       type="button"
                       onClick={() => {
                         setActiveGroup(g.id);
-                        setChatStarted(true);
                       }}
                       className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-secondary)] cursor-pointer"
                     >
@@ -490,17 +532,20 @@ export default function Home() {
             </>
           ) : (
             <ChatContent
+              messages={messages}
+              isLoading={isLoading}
               selectedSlot={selectedSlot}
               showInvitePreview={showInvitePreview}
               onSelectSlot={setSelectedSlot}
               onShowInvite={() => setShowInvitePreview(true)}
               onCloseInvite={() => setShowInvitePreview(false)}
+              onSuggestionClick={handleSendMessage}
             />
           )}
         </div>
 
         {/* Chat input — always visible */}
-        <ChatInput onSend={() => setChatStarted(true)} placeholder="Schedule a meeting..." />
+        <ChatInput onSend={handleSendMessage} placeholder="Schedule a meeting..." />
       </div>
     </div>
   );

@@ -1,36 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# When2Meet Agent
 
-## Getting Started
+Next.js app for scheduling with an **agent** instead of the classic When2Meet grid UI. The web app is a ChatGPT-style shell; data lives in **Firebase (Firestore)** and is exposed via **Route Handlers** under `app/api/`.
 
-First, run the development server:
+## Quick start
 
 ```bash
+npm install
+cp .env.example .env
+# Add Firebase credentials (see docs/setup.md)
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Documentation
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Doc | Contents |
+| --- | --- |
+| [docs/README.md](docs/README.md) | Index of all docs |
+| [docs/overview.md](docs/overview.md) | Goals, stack, repo layout |
+| [docs/setup.md](docs/setup.md) | Environment, Firebase, seed script |
+| [docs/architecture.md](docs/architecture.md) | App structure, Firebase Admin, types |
+| [docs/api.md](docs/api.md) | HTTP API reference |
+| [docs/components.md](docs/components.md) | UI component map |
+| [docs/firebase-mvp.md](docs/firebase-mvp.md) | Firestore collections and fields |
 
-## Learn More
+## Scripts
 
-To learn more about Next.js, take a look at the following resources:
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Next.js dev server |
+| `npm run build` / `npm run start` | Production build and serve |
+| `npm run lint` | ESLint |
+| `npm run db:seed` | Seed Firestore with MVP dummy data |
+| `npm run firebase` | Firebase CLI (`npm run firebase -- <args>`) |
+| `npm run firebase:login` | `firebase login` |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deploy
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Standard [Next.js on Vercel](https://nextjs.org/docs/app/building-your-application/deploying). Set Firebase / GCP credentials in the host environment for API routes that use Firestore.

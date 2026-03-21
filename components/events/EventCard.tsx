@@ -1,5 +1,3 @@
-"use client";
-
 import { useState } from "react";
 import type { SchedulingEvent } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
@@ -32,7 +30,7 @@ export function EventCard({ event }: EventCardProps) {
         <CardHeader>
           <div className="flex items-start justify-between gap-2">
             <CardTitle className="pr-2">{event.title}</CardTitle>
-            <span className="shrink-0 rounded-md bg-[var(--chat-accent-soft)] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--chat-accent)]">
+            <span className="shrink-0 rounded-md bg-[var(--bubble-action)] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--text-link)]">
               {STATUS_LABEL[event.status]}
             </span>
           </div>
@@ -41,7 +39,7 @@ export function EventCard({ event }: EventCardProps) {
           ) : null}
         </CardHeader>
         <CardContent>
-          <p className="text-xs text-[var(--chat-fg-muted)]">
+          <p className="text-[13px] text-[var(--text-tertiary)]">
             {event.participantCount} participant
             {event.participantCount === 1 ? "" : "s"}
           </p>
@@ -49,7 +47,7 @@ export function EventCard({ event }: EventCardProps) {
         <CardFooter className="mt-auto justify-end border-0 pt-0">
           <Button
             type="button"
-            variant="outline"
+            variant="secondary"
             size="sm"
             onClick={() => setModalOpen(true)}
           >

@@ -44,11 +44,13 @@ async function verify() {
       if (friendsSnapshot.empty) {
         console.log(`    └─ No friends`);
       } else {
-        friendsSnapshot.forEach((friendDoc, index) => {
+        let friendIndex = 0;
+        friendsSnapshot.forEach((friendDoc) => {
           const friendId = friendDoc.id;
           const friendData = friendDoc.data();
           const friendName = users.get(friendId)?.name || "Unknown";
-          const isLast = index === friendsSnapshot.size - 1;
+          const isLast = friendIndex === friendsSnapshot.size - 1;
+          friendIndex++;
           const prefix = isLast ? "└─" : "├─";
           console.log(
             `    ${prefix} ${friendName} (${friendId}) [${friendData.status}]`

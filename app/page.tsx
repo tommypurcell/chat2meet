@@ -813,7 +813,7 @@ export default function Home() {
         {/* Left: groups */}
         <div className="flex w-[260px] shrink-0 flex-col border-r border-[var(--divider)] bg-[var(--bg-secondary)]">
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-4">
-            <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">When2Meet</h2>
+            <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Chat2Meet</h2>
             <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
                 {theme === "dark" ? (
                   <svg width="18" height="18" viewBox="0 0 20 20" fill="none">

@@ -563,40 +563,43 @@ export default function Home() {
           </div>
 
           {/* Saved Events */}
-          <div className="mt-3 flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-4">
-            {isMounted && savedEvents.length > 0 && (
-              <>
-                <p className="px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.8px] text-[var(--text-secondary)]">
-                  Recent Events
-                </p>
-                {savedEvents.map((event) => {
-                  const date = event.finalizedSlot?.start
-                    ? new Date(event.finalizedSlot.start).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                    : 'TBD';
-                  const statusBadge = event.status === 'confirmed' ? '✓' : event.status === 'draft' ? '○' : '·';
+          {isMounted ? (
+            <div className="mt-3 flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-4">
+              {savedEvents.length > 0 ? (
+                <>
+                  <p className="px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.8px] text-[var(--text-secondary)]">
+                    Recent Events
+                  </p>
+                  {savedEvents.map((event) => {
+                    const date = event.finalizedSlot?.start
+                      ? new Date(event.finalizedSlot.start).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                      : 'TBD';
+                    const statusBadge = event.status === 'confirmed' ? '✓' : event.status === 'draft' ? '○' : '·';
 
-                  return (
-                    <Link
-                      key={event.id}
-                      href={`/events/${event.id}`}
-                      className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
-                    >
-                      <span className="text-[var(--text-tertiary)]">{statusBadge}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="truncate font-medium">{event.title}</p>
-                        <p className="text-[11px] text-[var(--text-tertiary)]">{date}</p>
-                      </div>
-                    </Link>
-                  );
-                })}
-              </>
-            )}
-            {isMounted && savedEvents.length === 0 && (
-              <p className="px-3 py-4 text-xs text-[var(--text-tertiary)]">
-                No events yet. Create one to get started!
-              </p>
-            )}
-          </div>
+                    return (
+                      <Link
+                        key={event.id}
+                        href={`/events/${event.id}`}
+                        className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+                      >
+                        <span className="text-[var(--text-tertiary)]">{statusBadge}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="truncate font-medium">{event.title}</p>
+                          <p className="text-[11px] text-[var(--text-tertiary)]">{date}</p>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </>
+              ) : (
+                <p className="px-3 py-4 text-xs text-[var(--text-tertiary)]">
+                  No events yet. Create one to get started!
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="mt-3 flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-4" />
+          )}
 
           {/* User */}
           <div className="border-t border-[var(--divider)] p-3">

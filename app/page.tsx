@@ -358,30 +358,32 @@ export default function Home() {
     [],
   );
 
+  const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const [chatHydrated, setChatHydrated] = useState(false);
+  const lastGroupRef = useRef<string | null>(activeGroup);
 
   const { messages, sendMessage, status, setMessages, stop } = useChat({
     transport,
   });
 
   useEffect(() => {
-    const saved = loadChatMessages();
-    if (saved.length > 0) {
-      setMessages(saved);
-    }
+    const saved = loadChatMessages(activeGroup);
+    setMessages(saved || []);
+    lastGroupRef.current = activeGroup; // Lock the current group so we don't accidentally save old messages into a new group during the swap cycle
     setChatHydrated(true);
-  }, [setMessages]);
+  }, [activeGroup, setMessages]);
 
   useEffect(() => {
     if (!chatHydrated) return;
-    saveChatMessages(messages);
-  }, [messages, chatHydrated]);
+    if (activeGroup !== lastGroupRef.current) return;
+    saveChatMessages(activeGroup, messages);
+  }, [messages, activeGroup, chatHydrated]);
+
   const isLoading = status === "submitted" || status === "streaming";
   const chatStarted = messages.length > 0;
 
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [showInvitePreview, setShowInvitePreview] = useState(false);
-  const [activeGroup, setActiveGroup] = useState<string | null>(null);
 
   const [networkPickerOpen, setNetworkPickerOpen] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
@@ -427,7 +429,7 @@ export default function Home() {
     if (status === "streaming" || status === "submitted") {
       stop();
     }
-    clearChatMessages();
+    clearChatMessages(activeGroup);
     setMessages([]);
     setSelectedSlot(null);
     setShowInvitePreview(false);

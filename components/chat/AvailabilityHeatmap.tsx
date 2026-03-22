@@ -1,120 +1,123 @@
 "use client";
 
-import { useMemo } from "react";
-import {
-  extractSuggestedTimesFromMessages,
-  parseSuggestedSlotDate,
-} from "@/lib/chat-tool-outputs";
-
-interface TimeSlot {
-  day: string;
-  hour: number;
-  available: boolean;
-  participants: string[];
-}
+import { useEffect, useState } from "react";
+import { HeatmapSlot } from "@/lib/heatmap-types";
 
 interface AvailabilityHeatmapProps {
-  messages: unknown[];
-  schedulingParticipants?: Array<{
-    memberUserId: string;
-    memberName: string;
-    memberEmail: string;
-  }>;
-}
-
-function parseHour12(timeStr: string): number | null {
-  const m = timeStr.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-  if (!m) return null;
-  let h = parseInt(m[1], 10);
-  const ap = m[3].toUpperCase();
-  if (ap === "PM" && h !== 12) h += 12;
-  if (ap === "AM" && h === 12) h = 0;
-  return h;
+  userIds: string[];
+  startDate: string; // ISO date
+  endDate: string; // ISO date
+  durationMinutes: number;
+  timezone: string;
 }
 
 export function AvailabilityHeatmap({
-  messages,
-  schedulingParticipants = [],
+  userIds,
+  startDate,
+  endDate,
+  durationMinutes,
+  timezone,
 }: AvailabilityHeatmapProps) {
-  const suggestedTimes = useMemo(
-    () => extractSuggestedTimesFromMessages(messages),
-    [messages],
-  );
+  const [slots, setSlots] = useState<HeatmapSlot[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const grid = useMemo(() => {
-    const now = new Date();
-    const nextWeek: TimeSlot[][] = [];
+  useEffect(() => {
+    if (userIds.length === 0) {
+      setSlots([]);
+      setLoading(false);
+      return;
+    }
 
-    for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-      const date = new Date(now);
-      date.setDate(now.getDate() + dayOffset);
-      date.setHours(0, 0, 0, 0);
+    const fetchHeatmap = async () => {
+      setLoading(true);
+      setError(null);
 
-      const dayName = date.toLocaleDateString("en-US", { weekday: "short" });
-      const monthDay = date.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      });
-      const dayLabel = `${dayName}, ${monthDay}`;
-
-      const daySlots: TimeSlot[] = [];
-      for (let hour = 5; hour < 23; hour++) {
-        daySlots.push({
-          day: dayLabel,
-          hour,
-          available: false,
-          participants: [],
+      try {
+        const response = await fetch("/api/calendar/heatmap", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userIds,
+            startDate,
+            endDate,
+            durationMinutes,
+            timezone,
+            slotIntervalMinutes: 30,
+          }),
         });
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch heatmap");
+        }
+
+        const data = await response.json();
+        setSlots(data.slots || []);
+      } catch (err) {
+        console.error("Error fetching heatmap:", err);
+        setError(err instanceof Error ? err.message : "Unknown error");
+      } finally {
+        setLoading(false);
       }
-      nextWeek.push(daySlots);
+    };
+
+    fetchHeatmap();
+  }, [userIds, startDate, endDate, durationMinutes, timezone]);
+
+  // Group slots by day
+  const slotsByDay = slots.reduce((acc, slot) => {
+    if (!acc[slot.day]) {
+      acc[slot.day] = [];
     }
+    acc[slot.day].push(slot);
+    return acc;
+  }, {} as Record<string, HeatmapSlot[]>);
 
-    const names =
-      schedulingParticipants.length > 0
-        ? schedulingParticipants.map((p) => p.memberName)
-        : [];
+  const days = Object.keys(slotsByDay).sort();
 
-    suggestedTimes.forEach((slot) => {
-      const slotDate = parseSuggestedSlotDate(slot.date, now);
-      const hour = parseHour12(slot.time);
-      if (slotDate == null || hour == null) return;
+  // Get unique time labels (rows)
+  const timeLabels = Array.from(
+    new Set(slots.map((s) => s.timeLabel))
+  ).sort((a, b) => {
+    // Sort by time
+    const parseTime = (label: string) => {
+      const match = label.match(/(\d+):(\d+)\s*(AM|PM)/);
+      if (!match) return 0;
+      let hour = parseInt(match[1]);
+      const minute = parseInt(match[2]);
+      const period = match[3];
+      if (period === "PM" && hour !== 12) hour += 12;
+      if (period === "AM" && hour === 12) hour = 0;
+      return hour * 60 + minute;
+    };
+    return parseTime(a) - parseTime(b);
+  });
 
-      slotDate.setHours(0, 0, 0, 0);
-
-      for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-        const colDate = new Date(now);
-        colDate.setDate(now.getDate() + dayOffset);
-        colDate.setHours(0, 0, 0, 0);
-
-        if (colDate.getTime() !== slotDate.getTime()) continue;
-
-        const hourIndex = hour - 5;
-        if (hourIndex < 0 || hourIndex >= nextWeek[dayOffset].length) return;
-
-        nextWeek[dayOffset][hourIndex].available = true;
-        nextWeek[dayOffset][hourIndex].participants = names;
-        return;
-      }
-    });
-
-    return nextWeek;
-  }, [suggestedTimes, schedulingParticipants]);
-
-  const hours = useMemo(() => {
-    const hrs: string[] = [];
-    for (let h = 5; h < 23; h++) {
-      const period = h >= 12 ? "PM" : "AM";
-      const displayHour = h > 12 ? h - 12 : h === 0 ? 12 : h;
-      hrs.push(`${displayHour}${period}`);
-    }
-    return hrs;
-  }, []);
-
-  if (suggestedTimes.length === 0) {
+  if (loading) {
     return (
       <div className="flex h-full items-center justify-center p-6">
         <div className="text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--bg-tertiary)]">
+          <p className="text-sm text-[var(--text-secondary)]">Loading availability...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex h-full items-center justify-center p-6">
+        <div className="text-center">
+          <p className="text-sm text-red-500">Error: {error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (userIds.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center p-6">
+        <div className="text-center">
+          <div className="mb-3 flex h-12 w-12 mx-auto items-center justify-center rounded-xl bg-[var(--bg-tertiary)]">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
               <rect
                 x="3"
@@ -134,12 +137,21 @@ export function AvailabilityHeatmap({
             </svg>
           </div>
           <p className="text-sm font-medium text-[var(--text-secondary)]">
-            No availability data yet
+            No participants selected
           </p>
           <p className="mt-1 text-xs text-[var(--text-tertiary)]">
-            When the agent calls suggestTimes, suggested slots appear here and on
-            time chips.
+            Add people to see group availability
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (slots.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center p-6">
+        <div className="text-center">
+          <p className="text-sm text-[var(--text-secondary)]">No availability data</p>
         </div>
       </div>
     );
@@ -150,67 +162,83 @@ export function AvailabilityHeatmap({
       <div className="flex-1 overflow-auto p-4">
         <div className="mb-4">
           <h3 className="text-sm font-semibold text-[var(--text-primary)]">
-            Availability overview
+            Group Availability
           </h3>
-          <p className="mt-1 text-xs text-[var(--text-tertiary)]">
-            {schedulingParticipants.length > 0
-              ? `Suggested times with ${schedulingParticipants.map((p) => p.memberName).join(", ")}`
-              : "Suggested meeting times from the agent"}
+          <p className="text-xs text-[var(--text-tertiary)] mt-1">
+            {userIds.length} participant{userIds.length !== 1 ? "s" : ""} • {durationMinutes} min slots
           </p>
         </div>
 
         <div className="relative">
+          {/* Day labels */}
           <div className="mb-2 flex gap-1">
-            <div className="w-12 shrink-0" />
-            {grid.map((daySlots, dayIndex) => (
-              <div
-                key={dayIndex}
-                className="flex-1 text-center text-[10px] font-medium text-[var(--text-secondary)]"
-              >
-                {daySlots[0]?.day.split(",")[0]}
-                <br />
-                <span className="text-[var(--text-tertiary)]">
-                  {daySlots[0]?.day.split(",")[1]}
-                </span>
-              </div>
-            ))}
+            <div className="w-16 shrink-0" />
+            {days.map((day) => {
+              const date = new Date(day);
+              const dayName = date.toLocaleDateString("en-US", { weekday: "short" });
+              const monthDay = date.toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+              });
+              return (
+                <div
+                  key={day}
+                  className="flex-1 text-center text-[10px] font-medium text-[var(--text-secondary)]"
+                >
+                  {dayName}
+                  <br />
+                  <span className="text-[var(--text-tertiary)]">{monthDay}</span>
+                </div>
+              );
+            })}
           </div>
 
+          {/* Heatmap grid */}
           <div className="space-y-0.5">
-            {hours.map((hourLabel, hourIndex) => (
-              <div key={hourIndex} className="flex items-center gap-1">
-                <div className="w-12 shrink-0 pr-2 text-right text-[9px] font-medium text-[var(--text-tertiary)]">
-                  {hourLabel}
+            {timeLabels.map((timeLabel) => (
+              <div key={timeLabel} className="flex items-center gap-1">
+                <div className="w-16 shrink-0 text-right text-[9px] font-medium text-[var(--text-tertiary)] pr-2">
+                  {timeLabel}
                 </div>
-                {grid.map((daySlots, dayIndex) => {
-                  const cell = daySlots[hourIndex];
-                  const isAvailable = cell?.available;
+                {days.map((day) => {
+                  const slot = slotsByDay[day]?.find((s) => s.timeLabel === timeLabel);
+
+                  if (!slot) {
+                    return (
+                      <div
+                        key={day}
+                        className="flex-1 bg-gray-100 dark:bg-gray-800 rounded"
+                        style={{ aspectRatio: "1" }}
+                      />
+                    );
+                  }
+
+                  const { score, availableCount, totalCount } = slot;
+
+                  // Color intensity based on score
+                  const getColor = (score: number) => {
+                    if (score === 1) return "bg-green-600";
+                    if (score >= 0.75) return "bg-green-500";
+                    if (score >= 0.5) return "bg-yellow-500";
+                    if (score >= 0.25) return "bg-orange-400";
+                    return "bg-gray-200 dark:bg-gray-700";
+                  };
 
                   return (
                     <div
-                      key={dayIndex}
+                      key={day}
                       className="group relative flex-1"
                       style={{ aspectRatio: "1" }}
                     >
                       <div
-                        className={`h-full w-full rounded transition-all ${
-                          isAvailable
-                            ? "bg-green-500/80 hover:bg-green-500"
-                            : "bg-gray-200/40 dark:bg-gray-700/40"
-                        }`}
-                        title={
-                          isAvailable
-                            ? `Available at ${hourLabel} on ${cell.day}`
-                            : `Not highlighted at ${hourLabel} on ${cell?.day ?? ""}`
-                        }
+                        className={`h-full w-full rounded transition-all cursor-pointer hover:ring-2 hover:ring-[var(--accent-primary)] ${getColor(score)}`}
+                        title={`${availableCount}/${totalCount} available`}
                       />
-                      {isAvailable && (
-                        <div className="absolute bottom-full left-1/2 z-10 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-[10px] text-white group-hover:block dark:bg-gray-100 dark:text-gray-900">
-                          {cell.participants.length > 0
-                            ? cell.participants.join(", ")
-                            : "Available"}
-                        </div>
-                      )}
+                      <div className="absolute bottom-full left-1/2 z-10 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-[10px] text-white group-hover:block dark:bg-gray-100 dark:text-gray-900">
+                        {availableCount}/{totalCount} free
+                        <br />
+                        {timeLabel}
+                      </div>
                     </div>
                   );
                 })}
@@ -219,25 +247,20 @@ export function AvailabilityHeatmap({
           </div>
         </div>
 
-        <div className="mt-4 flex items-center justify-center gap-4 text-[10px]">
+        {/* Legend */}
+        <div className="mt-4 flex items-center justify-center gap-3 text-[10px]">
           <div className="flex items-center gap-1.5">
-            <div className="h-3 w-3 rounded bg-green-500/80" />
-            <span className="text-[var(--text-secondary)]">Suggested</span>
+            <div className="h-3 w-3 rounded bg-green-600" />
+            <span className="text-[var(--text-secondary)]">All free</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="h-3 w-3 rounded bg-gray-200/40 dark:bg-gray-700/40" />
-            <span className="text-[var(--text-secondary)]">Other</span>
+            <div className="h-3 w-3 rounded bg-yellow-500" />
+            <span className="text-[var(--text-secondary)]">Some free</span>
           </div>
-        </div>
-
-        <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-3">
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
-            Summary
-          </p>
-          <p className="text-xs leading-relaxed text-[var(--text-secondary)]">
-            {suggestedTimes.length} suggested slot
-            {suggestedTimes.length !== 1 ? "s" : ""} from the agent.
-          </p>
+          <div className="flex items-center gap-1.5">
+            <div className="h-3 w-3 rounded bg-gray-200 dark:bg-gray-700" />
+            <span className="text-[var(--text-secondary)]">None free</span>
+          </div>
         </div>
       </div>
     </div>

@@ -851,8 +851,18 @@ export default function Home() {
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
               <AvailabilityHeatmap
-                messages={messages}
-                schedulingParticipants={schedulingParticipants}
+                userIds={[
+                  user?.uid || "",
+                  ...schedulingParticipants.map((p) => p.memberUserId),
+                ].filter(Boolean)}
+                startDate={new Date().toISOString().split("T")[0]}
+                endDate={
+                  new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+                    .toISOString()
+                    .split("T")[0]
+                }
+                durationMinutes={60}
+                timezone={user?.timezone || "America/Los_Angeles"}
               />
             </div>
           </div>

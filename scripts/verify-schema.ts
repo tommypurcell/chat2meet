@@ -78,6 +78,21 @@ async function verify() {
     }
   }
 
+  // 4. Calendar snapshots (Google events cached from home sync)
+  console.log("\n📅 CALENDARS (snapshots):");
+  const calendarsSnapshot = await db.collection("calendars").get();
+  if (calendarsSnapshot.empty) {
+    console.log("  ⚠️  No calendar documents yet (sign in + load home after connecting Google).");
+  } else {
+    calendarsSnapshot.forEach((doc) => {
+      const d = doc.data();
+      const label = d.displayName || doc.id;
+      console.log(
+        `  • ${label} (${doc.id}): ${d.totalEvents ?? "?"} events, tz=${d.timezone ?? "?"}`,
+      );
+    });
+  }
+
   console.log("\n✅ Verification complete!\n");
 }
 

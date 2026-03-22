@@ -1,7 +1,7 @@
 ---
 name: integrate-google-calendar
 description: >-
-  Integrate Google Calendar read access in a web app using OAuth 2.0 (authorization code)
+  Integrate Google Calendar access in a web app using OAuth 2.0 (authorization code)
   and the Google Calendar API v3. Use when implementing or debugging Google Calendar
   connectivity, or when comparing with this repository’s pattern.
 ---
@@ -10,7 +10,7 @@ description: >-
 
 ## What you are building
 
-A flow where the user signs in with Google, grants read-only access to calendar list and events, your backend exchanges the authorization code for tokens, and your server calls the Calendar API to list calendars and fetch busy times.
+A flow where the user signs in with Google, grants access to calendar list and events, your backend exchanges the authorization code for tokens, and your server calls the Calendar API to list calendars and fetch busy times.
 
 ## General approach
 
@@ -20,12 +20,12 @@ A flow where the user signs in with Google, grants read-only access to calendar 
    - Create **OAuth 2.0 Client ID** credentials of type **Web application**.
    - Add authorized **JavaScript origins** and **redirect URIs** that match your app (e.g. `https://yourdomain.com` and `https://yourdomain.com/auth` if you use `/auth` as the OAuth callback route).
 
-2. **OAuth scopes** (read-only autofill pattern)
+2. **OAuth scopes**
 
    Typical scopes:
 
    - `https://www.googleapis.com/auth/calendar.calendarlist.readonly`
-   - `https://www.googleapis.com/auth/calendar.events.readonly`
+   - `https://www.googleapis.com/auth/calendar.events`
 
    Often combined with OpenID-style scopes for identity: `openid`, `email`, `profile`.
 
@@ -60,7 +60,7 @@ File: `frontend/src/utils/sign_in_utils.js`
 - Builds the Google authorize URL with a **hardcoded web client ID** (`*.apps.googleusercontent.com`).
 - Redirect URI: `` `${window.location.origin}/auth` ``.
 - Puts `calendarType: "google"` (via `calendarTypes.GOOGLE`) inside the `state` query param so the `/auth` callback knows which provider completed.
-- When calendar permission is requested, appends scopes for calendar list + events readonly (see `signInGoogle` and `requestCalendarPermission`).
+- When calendar permission is requested, appends scopes for calendar list + events (see `signInGoogle` and `requestCalendarPermission`).
 
 ### Backend: exchanging the code for tokens
 

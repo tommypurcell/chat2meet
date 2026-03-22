@@ -139,14 +139,26 @@ function ChatContent({
           ))}
         </div>
       ) : (
-        messages.map((msg) => (
-          <ChatMessage key={msg.id} role={msg.role}>
-            <span className="whitespace-pre-wrap">
-              {mergeUiMessageTextParts(msg.parts) ||
-                (typeof msg.content === "string" ? msg.content : "")}
-            </span>
-          </ChatMessage>
-        ))
+        <>
+          {messages.map((msg) => (
+            <ChatMessage key={msg.id} role={msg.role}>
+              <span className="whitespace-pre-wrap">
+                {mergeUiMessageTextParts(msg.parts) ||
+                  (typeof msg.content === "string" ? msg.content : "")}
+              </span>
+            </ChatMessage>
+          ))}
+
+          {isLoading && (
+            <ChatMessage role="assistant">
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-[var(--text-tertiary)] rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                <div className="w-2 h-2 bg-[var(--text-tertiary)] rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                <div className="w-2 h-2 bg-[var(--text-tertiary)] rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+              </div>
+            </ChatMessage>
+          )}
+        </>
       )}
 
       {suggestedTimes.length > 0 && (

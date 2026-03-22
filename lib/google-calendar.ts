@@ -22,8 +22,8 @@ export const GOOGLE_OAUTH_SCOPES = [
   "openid",
   "email",
   "profile",
-  "https://www.googleapis.com/auth/calendar.readonly",
-  "https://www.googleapis.com/auth/calendar.events.readonly",
+  "https://www.googleapis.com/auth/calendar", // Full calendar access (read + write)
+  "https://www.googleapis.com/auth/calendar.events", // Events read + write
 ];
 
 export interface GoogleTokens {

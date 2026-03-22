@@ -25,7 +25,7 @@ This guide will get you started implementing **Google Calendar** integration (Ph
    - Developer email: your email
    - Scopes: Add these:
      - `https://www.googleapis.com/auth/calendar.calendarlist.readonly`
-     - `https://www.googleapis.com/auth/calendar.events.readonly`
+     - `https://www.googleapis.com/auth/calendar.events`
 8. Create OAuth Client:
    - Application type: **Web application**
    - Name: "When2Meet Web"
@@ -179,7 +179,7 @@ export async function GET() {
 
   const scopes = [
     'https://www.googleapis.com/auth/calendar.calendarlist.readonly',
-    'https://www.googleapis.com/auth/calendar.events.readonly',
+    'https://www.googleapis.com/auth/calendar.events',
   ];
 
   const url = oauth2Client.generateAuthUrl({

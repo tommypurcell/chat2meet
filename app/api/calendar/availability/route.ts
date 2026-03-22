@@ -116,8 +116,10 @@ export async function POST(request: NextRequest) {
         // Fetch events from Google Calendar
         const calendar = google.calendar({ version: "v3", auth: oauth2Client });
 
+        const selectedCalendarId = accountData.selectedCalendarId || "primary";
+
         const response = await calendar.events.list({
-          calendarId: "primary",
+          calendarId: selectedCalendarId,
           timeMin: rangeStart.toISOString(),
           timeMax: rangeEnd.toISOString(),
           maxResults: 2500,

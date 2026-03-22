@@ -83,9 +83,11 @@ export async function fetchUserCalendarEvents(
   // Fetch events
   const calendar = google.calendar({ version: "v3", auth: oauth2Client });
 
+  const selectedCalendarId = accountData.selectedCalendarId || "primary";
+
   const now = new Date();
   const requestParams: Record<string, unknown> = {
-    calendarId: "primary",
+    calendarId: selectedCalendarId,
     timeMin: timeMin || now.toISOString(),
     maxResults,
     singleEvents: true,

@@ -95,8 +95,10 @@ export async function GET(request: NextRequest) {
     const startDate = new Date(now);
     startDate.setDate(now.getDate() - days);
 
+    const selectedCalendarId = accountData.selectedCalendarId || "primary";
+
     const response = await calendar.events.list({
-      calendarId: "primary",
+      calendarId: selectedCalendarId,
       timeMin: startDate.toISOString(),
       timeMax: now.toISOString(),
       maxResults: 2500,

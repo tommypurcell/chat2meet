@@ -41,16 +41,6 @@ import {
   SAMPLE_INVITE,
 } from "@/lib/mock-data";
 
-const ROUTES = [
-  { href: "/onboarding", label: "1. Sign Up" },
-  { href: "/onboarding/preferences", label: "2. Preferences" },
-  { href: "/", label: "3. Home" },
-  { href: "/network", label: "4. Network" },
-  { href: "/addnetwork", label: "Add network" },
-  { href: "/invite/demo", label: "7. Invite" },
-  { href: "/join/demo", label: "8. Join Gate" },
-  { href: "/event/demo", label: "9. Event Detail" },
-];
 
 /* ── Invite preview card (Screen 6) ──────────────────── */
 function InvitePreview({ onClose }: { onClose: () => void }) {
@@ -392,7 +382,7 @@ export default function Home() {
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [showInvitePreview, setShowInvitePreview] = useState(false);
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
-  const [screensMenuOpen, setScreensMenuOpen] = useState(false);
+
   const [networkPickerOpen, setNetworkPickerOpen] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [calendarView, setCalendarView] = useState<CalendarView>("week");

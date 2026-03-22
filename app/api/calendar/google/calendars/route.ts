@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/firebase-admin";
-import { getCalendarList, refreshAccessToken } from "@/lib/google-calendar";
+import { google } from "googleapis";
+import { decrypt } from "@/lib/encryption";
+import { collection, timestamps } from "@/lib/api-helpers";
 
 /**
  * GET /api/calendar/google/calendars
- * Fetch list of Google Calendars for a user
+ * Fetch list of Google Calendars for a user using their stored credentials
  *
  * Query params:
  * - userId: (required) User ID
@@ -21,59 +22,145 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get user document
-    const db = getDb();
-    const userRef = db.collection("users").doc(userId);
-    const userDoc = await userRef.get();
+    // Get calendar account from Firestore
+    const accountsSnapshot = await collection("users")
+      .doc(userId)
+      .collection("calendarAccounts")
+      .where("provider", "==", "google")
+      .where("isActive", "==", true)
+      .limit(1)
+      .get();
 
-    if (!userDoc.exists) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    const userData = userDoc.data();
-    const googleCalendar = userData?.googleCalendar;
-
-    if (!googleCalendar?.connected) {
+    if (accountsSnapshot.empty) {
       return NextResponse.json(
-        { error: "Google Calendar not connected" },
-        { status: 400 }
+        { error: "No active Google Calendar connection found" },
+        { status: 404 }
       );
     }
 
-    // Check if token is expired
-    let accessToken = googleCalendar.accessToken;
-    const expiresAt = new Date(googleCalendar.expiresAt);
+    const accountDoc = accountsSnapshot.docs[0];
+    const accountData = accountDoc.data();
 
-    if (expiresAt <= new Date()) {
-      // Token expired, refresh it
-      if (!googleCalendar.refreshToken) {
+    // Decrypt tokens
+    const accessToken = decrypt(accountData.accessToken);
+    const refreshToken = accountData.refreshToken
+      ? decrypt(accountData.refreshToken)
+      : null;
+
+    // Set up OAuth client
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.OAUTH_REDIRECT_URI
+    );
+
+    oauth2Client.setCredentials({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+
+    // Check if token needs refresh
+    const tokenExpiresAt = accountData.tokenExpiresAt?.toDate();
+    if (tokenExpiresAt && tokenExpiresAt <= new Date()) {
+      if (!refreshToken) {
         return NextResponse.json(
-          { error: "Refresh token not available, please reconnect your calendar" },
+          { error: "Token expired and no refresh token available" },
           { status: 401 }
         );
       }
 
-      const tokens = await refreshAccessToken(googleCalendar.refreshToken);
-      accessToken = tokens.access_token;
-
-      // Update stored tokens
-      await userRef.update({
-        "googleCalendar.accessToken": accessToken,
-        "googleCalendar.expiresAt": new Date(
-          Date.now() + tokens.expires_in * 1000
-        ).toISOString(),
-      });
+      const { credentials } = await oauth2Client.refreshAccessToken();
+      const ts = timestamps();
+      await collection("users")
+        .doc(userId)
+        .collection("calendarAccounts")
+        .doc(accountDoc.id)
+        .update({
+          accessToken: credentials.access_token
+            ? (await import("@/lib/encryption")).encrypt(credentials.access_token)
+            : accountData.accessToken,
+          tokenExpiresAt: credentials.expiry_date
+            ? new Date(credentials.expiry_date)
+            : null,
+          updatedAt: ts.updatedAt,
+        });
     }
 
-    // Fetch calendar list from Google
-    const calendars = await getCalendarList(accessToken);
+    // Fetch calendar list
+    const calendar = google.calendar({ version: "v3", auth: oauth2Client });
+    const response = await calendar.calendarList.list();
+    const calendars = response.data.items || [];
 
-    return NextResponse.json({ calendars });
+    return NextResponse.json({
+      success: true,
+      calendars: calendars.map((cal) => ({
+        id: cal.id,
+        summary: cal.summary || "Untitled",
+        primary: cal.primary || false,
+        backgroundColor: cal.backgroundColor || null,
+        accessRole: cal.accessRole || null,
+        selected: cal.selected || false,
+      })),
+      selectedCalendarId: accountData.selectedCalendarId || null,
+    });
   } catch (error) {
     console.error("Error fetching Google calendars:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
       { error: `Failed to fetch calendars: ${errorMessage}` },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * POST /api/calendar/google/calendars
+ * Save the user's selected calendar ID
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const { userId, calendarId } = await request.json();
+
+    if (!userId || !calendarId) {
+      return NextResponse.json(
+        { error: "userId and calendarId are required" },
+        { status: 400 }
+      );
+    }
+
+    // Get calendar account from Firestore
+    const accountsSnapshot = await collection("users")
+      .doc(userId)
+      .collection("calendarAccounts")
+      .where("provider", "==", "google")
+      .where("isActive", "==", true)
+      .limit(1)
+      .get();
+
+    if (accountsSnapshot.empty) {
+      return NextResponse.json(
+        { error: "No active Google Calendar connection found" },
+        { status: 404 }
+      );
+    }
+
+    const accountDoc = accountsSnapshot.docs[0];
+    const ts = timestamps();
+
+    await collection("users")
+      .doc(userId)
+      .collection("calendarAccounts")
+      .doc(accountDoc.id)
+      .update({
+        selectedCalendarId: calendarId,
+        updatedAt: ts.updatedAt,
+      });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Error saving calendar selection:", error);
+    return NextResponse.json(
+      { error: "Failed to save calendar selection" },
       { status: 500 }
     );
   }

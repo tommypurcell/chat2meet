@@ -99,9 +99,10 @@ export async function GET(request: NextRequest) {
 
     // Fetch events from Google Calendar
     const calendar = google.calendar({ version: "v3", auth: oauth2Client });
+    const selectedCalendarId = accountData.selectedCalendarId || "primary";
 
     const requestParams: any = {
-      calendarId: "primary",
+      calendarId: selectedCalendarId,
       timeMin: timeMin,
       maxResults: maxResults,
       singleEvents: true,

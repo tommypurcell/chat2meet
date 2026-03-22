@@ -5,6 +5,10 @@ import { getAuth, getDb } from "@/lib/firebase-admin";
 import { FIREBASE_SESSION_COOKIE } from "@/lib/auth-session";
 import { cookies } from "next/headers";
 import { AGENT_PLAIN_TEXT_OUTPUT_RULES } from "@/lib/agent-plain-text-prompt";
+import {
+  calendarDateInTimeZone,
+  formatLocalDateTimeForPrompt,
+} from "@/lib/date-in-timezone";
 
 export async function POST(req: Request) {
   const { messages }: { messages: UIMessage[] } = await req.json();
@@ -12,6 +16,7 @@ export async function POST(req: Request) {
   // Get authenticated user
   let currentUserId: string | null = null;
   let userName = "there";
+  let userTimeZone = "America/Los_Angeles";
   try {
     const cookieStore = await cookies();
     const sessionCookie = cookieStore.get(FIREBASE_SESSION_COOKIE)?.value;
@@ -24,11 +29,15 @@ export async function POST(req: Request) {
       if (userDoc.exists) {
         const data = userDoc.data();
         userName = data?.name || data?.displayName || decoded.name || "there";
+        const tz = data?.timezone;
+        if (typeof tz === "string" && tz.trim()) userTimeZone = tz.trim();
       }
     }
   } catch (e) {
     console.error("Error fetching user for onboarding:", e);
   }
+
+  const now = new Date();
 
   const result = streamText({
     model: google(process.env.GEMINI_MODEL || "gemini-3-flash-preview"),
@@ -55,7 +64,7 @@ Guidelines:
 - You can use reasonable defaults: 9 AM start, 5 PM end, 30 min meetings, weekdays only
 - After saving preferences, call completeOnboarding
 
-Today's date is ${new Date().toISOString().split("T")[0]}.
+The user's local timezone is ${userTimeZone}. Local calendar date (not UTC): ${calendarDateInTimeZone(now, userTimeZone)}. Local time now: ${formatLocalDateTimeForPrompt(now, userTimeZone)}.
 
 ${AGENT_PLAIN_TEXT_OUTPUT_RULES}`,
     messages: await convertToModelMessages(messages),

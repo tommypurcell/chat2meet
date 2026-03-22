@@ -34,6 +34,7 @@ import {
   formatCalendarLoadErrorPrompt,
   formatNoCalendarConnectedPrompt,
 } from "@/lib/format-calendar-for-prompt";
+import { calendarDateInTimeZone } from "@/lib/date-in-timezone";
 import { cn, mergeUiMessageTextParts } from "@/lib/utils";
 import {
   CHAT_SUGGESTIONS,
@@ -203,6 +204,13 @@ export default function Home() {
   const currentUserIdRef = useRef<string | undefined>(undefined);
   currentUserIdRef.current = user?.uid;
 
+  const userTimezoneRef = useRef("America/Los_Angeles");
+  userTimezoneRef.current =
+    user?.timezone ??
+    (typeof Intl !== "undefined"
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone
+      : "America/Los_Angeles");
+
   /** Preformatted markdown for /api/chat — same payload as GET /api/calendar/google/events, sent as `calendarContext`. */
   const [calendarPromptForChat, setCalendarPromptForChat] = useState("");
   const calendarPromptForChatRef = useRef("");
@@ -218,10 +226,12 @@ export default function Home() {
 
     const fetchCalendarData = async () => {
       try {
+        const tz =
+          user?.timezone ??
+          Intl.DateTimeFormat().resolvedOptions().timeZone;
         const today = new Date();
-        const nextWeek = new Date(today);
-        nextWeek.setDate(today.getDate() + 7);
-        const rangeLabel = `${today.toISOString().split("T")[0]} → ${nextWeek.toISOString().split("T")[0]}`;
+        const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+        const rangeLabel = `${calendarDateInTimeZone(today, tz)} → ${calendarDateInTimeZone(nextWeek, tz)}`;
 
         const response = await fetch(
           `/api/calendar/google/events?userId=${uid}&timeMin=${today.toISOString()}&timeMax=${nextWeek.toISOString()}&maxResults=100`,
@@ -256,7 +266,7 @@ export default function Home() {
               uid,
               data.events,
               `next 7 days (${rangeLabel})`,
-              user?.timezone ?? "America/Los_Angeles",
+              tz,
             ),
           );
         } else {
@@ -289,6 +299,7 @@ export default function Home() {
             schedulingParticipants: schedulingParticipantsRef.current,
             currentUserId: currentUserIdRef.current ?? undefined,
             calendarContext: calendarPromptForChatRef.current || undefined,
+            userTimezone: userTimezoneRef.current,
           },
         }),
       }),

@@ -26,6 +26,10 @@ import {
   mockEventsToBusyBlocks,
   resolveMockCalendarId,
 } from "@/lib/mock-calendar-agent";
+import {
+  calendarDateInTimeZone,
+  formatLocalDateTimeForPrompt,
+} from "@/lib/date-in-timezone";
 
 function parseSchedulingParticipants(raw: unknown): SchedulingParticipant[] {
   if (!Array.isArray(raw)) return [];
@@ -46,6 +50,8 @@ export async function POST(req: Request) {
     messages?: UIMessage[];
     schedulingParticipants?: unknown;
     currentUserId?: string;
+    /** IANA zone from the browser (e.g. America/Los_Angeles) — used for "today" in the prompt. */
+    userTimezone?: string;
     /** Preformatted markdown from the client (same data as GET /api/calendar/google/events). */
     calendarContext?: string;
   };
@@ -88,6 +94,21 @@ export async function POST(req: Request) {
     body.schedulingParticipants,
   );
 
+  let userTimeZone = "America/Los_Angeles";
+  const tzFromClient =
+    typeof body.userTimezone === "string" ? body.userTimezone.trim() : "";
+  if (tzFromClient) {
+    userTimeZone = tzFromClient;
+  } else {
+    try {
+      const userSnap = await collection("users").doc(currentUserId).get();
+      const t = userSnap.data()?.timezone;
+      if (typeof t === "string" && t.trim()) userTimeZone = t.trim();
+    } catch {
+      /* keep default */
+    }
+  }
+
   const clientCalendar =
     typeof body.calendarContext === "string" ? body.calendarContext.trim() : "";
 
@@ -105,8 +126,7 @@ export async function POST(req: Request) {
     try {
       if (currentUserId) {
         const now = new Date();
-        const nextWeek = new Date(now);
-        nextWeek.setDate(now.getDate() + 7);
+        const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
         const accountsSnapshot = await collection("users")
           .doc(currentUserId)
@@ -178,7 +198,7 @@ export async function POST(req: Request) {
             ")",
           );
 
-          const rangeLabel = `${now.toISOString().split("T")[0]} → ${nextWeek.toISOString().split("T")[0]}`;
+          const rangeLabel = `${calendarDateInTimeZone(now, userTimeZone)} → ${calendarDateInTimeZone(nextWeek, userTimeZone)}`;
 
           const mapped = events
             .filter((e) => e.start?.dateTime)
@@ -188,20 +208,11 @@ export async function POST(req: Request) {
               end: e.end?.dateTime,
             }));
 
-          let timeZone = "America/Los_Angeles";
-          try {
-            const userSnap = await collection("users").doc(currentUserId).get();
-            const t = userSnap.data()?.timezone;
-            if (typeof t === "string" && t.trim()) timeZone = t.trim();
-          } catch {
-            /* keep default */
-          }
-
           userCalendarData = formatCalendarEventsForPrompt(
             currentUserId,
             mapped,
             `next 7 days (${rangeLabel})`,
-            timeZone,
+            userTimeZone,
           );
         }
       } else {
@@ -224,17 +235,8 @@ No user id in session — cannot load calendar.`;
     "chars",
   );
 
-  let timeZoneForMock = "America/Los_Angeles";
-  try {
-    const userSnap = await collection("users").doc(currentUserId).get();
-    const t = userSnap.data()?.timezone;
-    if (typeof t === "string" && t.trim()) timeZoneForMock = t.trim();
-  } catch {
-    /* keep default */
-  }
-
   const mockNetworkCalendarsBlock = formatMockNetworkCalendarsForPrompt(
-    timeZoneForMock,
+    userTimeZone,
     Date.now(),
     { omitUserIds: [] },
   );
@@ -261,7 +263,7 @@ Help users find times to meet with their friends and colleagues.
 ## Current User
 The logged-in user's ID is: ${currentUserId ?? "(unknown)"}
 
-IMPORTANT: Today's date is ${new Date().toISOString().split("T")[0]}.
+IMPORTANT: The user's local timezone is ${userTimeZone}. Local calendar date (not UTC): ${calendarDateInTimeZone(new Date(), userTimeZone)}. Local time now: ${formatLocalDateTimeForPrompt(new Date(), userTimeZone)}. Use this local date for "today", "this week", and similar — do not infer the calendar day from UTC.
 
 ${userCalendarData}
 ${mockNetworkCalendarsBlock}

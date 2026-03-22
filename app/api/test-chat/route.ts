@@ -19,6 +19,10 @@ import {
   mockEventsToBusyBlocks,
   resolveMockCalendarId,
 } from "@/lib/mock-calendar-agent";
+import {
+  calendarDateInTimeZone,
+  formatLocalDateTimeForPrompt,
+} from "@/lib/date-in-timezone";
 
 function parseSchedulingParticipants(raw: unknown): SchedulingParticipant[] {
   if (!Array.isArray(raw)) return [];
@@ -48,12 +52,13 @@ export async function POST(req: Request) {
 
   const schedulingParticipants = parseSchedulingParticipants(body.schedulingParticipants);
 
+  const demoTz = "America/Los_Angeles";
+
   let userCalendarData = "";
   try {
     const now = new Date();
-    const nextWeek = new Date(now);
-    nextWeek.setDate(now.getDate() + 7);
-    const rangeLabel = `${now.toISOString().split("T")[0]} → ${nextWeek.toISOString().split("T")[0]}`;
+    const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const rangeLabel = `${calendarDateInTimeZone(now, demoTz)} → ${calendarDateInTimeZone(nextWeek, demoTz)}`;
 
     const calendarKey = resolveMockCalendarId(currentUserId);
     const rawEvents = calendarKey
@@ -71,7 +76,7 @@ export async function POST(req: Request) {
         currentUserId,
         mapped,
         `next 7 days (${rangeLabel})`,
-        "America/Los_Angeles",
+        demoTz,
         Date.now(),
         "demo",
       );
@@ -84,7 +89,7 @@ export async function POST(req: Request) {
   }
 
   const mockNetworkCalendarsBlock = formatMockNetworkCalendarsForPrompt(
-    "America/Los_Angeles",
+    demoTz,
     Date.now(),
     { omitUserIds: [currentUserId] },
   );
@@ -111,7 +116,7 @@ Help users find times to meet with their friends and colleagues.
 ## Current User
 The logged-in user's ID is: ${currentUserId ?? "(unknown)"}
 
-IMPORTANT: Today's date is ${new Date().toISOString().split("T")[0]}.
+IMPORTANT: Demo timezone is ${demoTz}. Local calendar date (not UTC): ${calendarDateInTimeZone(new Date(), demoTz)}. Local time now: ${formatLocalDateTimeForPrompt(new Date(), demoTz)}. Use this local date for "today" — do not infer the calendar day from UTC.
 
 ${userCalendarData}
 ${mockNetworkCalendarsBlock}

@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { GoogleCalendarConnect } from "@/components/calendar/GoogleCalendarConnect";
+import { GoogleCalendarDisconnect } from "@/components/calendar/GoogleCalendarDisconnect";
 import { Button } from "@/components/ui/Button";
 
 export default function SettingsPage() {
@@ -70,7 +71,19 @@ export default function SettingsPage() {
         <div className="mb-8">
           <h2 className="mb-4 text-xl font-semibold">Calendar Integration</h2>
           <div className="space-y-4">
-            <GoogleCalendarConnect userId={user.uid} />
+            {user.calendarConnected ? (
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="h-2 w-2 rounded-full bg-green-500" />
+                  <p className="text-sm font-medium text-[var(--text-primary)]">
+                    Google Calendar connected
+                  </p>
+                </div>
+                <GoogleCalendarDisconnect userId={user.uid} />
+              </div>
+            ) : (
+              <GoogleCalendarConnect userId={user.uid} />
+            )}
           </div>
         </div>
 

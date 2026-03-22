@@ -9,6 +9,7 @@ import {
   calculateFreeWindows,
   findCommonFreeSlots,
 } from "@/lib/calendar-utils";
+import { createCalendarEvent } from "@/lib/google-calendar";
 import type { SchedulingParticipant } from "@/lib/types";
 import { getSessionUserId } from "@/lib/auth-session";
 import { defaultDevUserId } from "@/lib/dev-user-ids";
@@ -273,6 +274,9 @@ On your first message, introduce yourself briefly. Then:
 - For **Janet, Pete, Phil**, and other people in **Demo network calendars**, use the schedules above or call \`getSchedule\` / \`findOverlap\` with ids \`janet\`, \`pete\`, \`phil\` (or legacy \`user_janet\`, etc. — both work). Demo event dates are **Mar 15–29, 2026** (\`America/Los_Angeles\`).
 - When a user mentions meeting with someone specific, use your tools to find overlapping free times and suggest specific times
 - Call suggestTimes when you find good meeting times to display them interactively
+- You can create events on the user's Google Calendar with the \`createEvent\` tool
+- **NEVER call createEvent without the user's explicit confirmation.** Always summarise the event (title, date/time, attendees) and ask "Should I create this?" first.
+- After creating an event, tell the user it was added and include the Google Calendar link from the result
 ${schedulingBlock}
 ${AGENT_PLAIN_TEXT_OUTPUT_RULES}`;
 
@@ -696,6 +700,138 @@ ${AGENT_PLAIN_TEXT_OUTPUT_RULES}`;
             console.log("=== TOOL ERROR: findOverlap ===");
             console.log(JSON.stringify(errorResult, null, 2));
             return errorResult;
+          }
+        },
+      }),
+
+      createEvent: tool({
+        description:
+          "Create an event on the current user's Google Calendar. ALWAYS confirm details with the user before calling this tool.",
+        inputSchema: z.object({
+          summary: z.string().describe("Event title"),
+          startDateTime: z
+            .string()
+            .describe("ISO-8601 start datetime (e.g. 2026-03-25T10:00:00-07:00)"),
+          endDateTime: z
+            .string()
+            .describe("ISO-8601 end datetime (e.g. 2026-03-25T11:00:00-07:00)"),
+          description: z.string().optional().describe("Optional event description"),
+          attendeeEmails: z
+            .array(z.string())
+            .optional()
+            .describe("Optional list of attendee email addresses"),
+          timeZone: z
+            .string()
+            .optional()
+            .describe("IANA timezone (e.g. America/Los_Angeles). Defaults to user preference."),
+        }),
+        execute: async ({
+          summary,
+          startDateTime,
+          endDateTime,
+          description,
+          attendeeEmails,
+          timeZone,
+        }) => {
+          try {
+            console.log("=== TOOL: createEvent ===");
+            console.log("Summary:", summary);
+            console.log("Start:", startDateTime, "End:", endDateTime);
+            console.log("Attendees:", attendeeEmails);
+
+            if (!currentUserId) {
+              return { error: "No user is logged in — cannot create an event." };
+            }
+
+            const accountsSnapshot = await collection("users")
+              .doc(currentUserId)
+              .collection("calendarAccounts")
+              .where("provider", "==", "google")
+              .where("isActive", "==", true)
+              .limit(1)
+              .get();
+
+            if (accountsSnapshot.empty) {
+              return {
+                error:
+                  "No Google Calendar connected. Ask the user to connect their calendar in Settings first.",
+              };
+            }
+
+            const accountDoc = accountsSnapshot.docs[0];
+            const accountData = accountDoc.data();
+
+            let accessToken = decrypt(accountData.accessToken);
+            const refreshToken = accountData.refreshToken
+              ? decrypt(accountData.refreshToken)
+              : null;
+
+            const tokenExpiresAt = accountData.tokenExpiresAt?.toDate();
+            if (tokenExpiresAt && tokenExpiresAt <= new Date()) {
+              if (!refreshToken) {
+                return { error: "Calendar token expired and no refresh token available." };
+              }
+
+              const oauth2Client = new googleApis.auth.OAuth2(
+                process.env.GOOGLE_CLIENT_ID,
+                process.env.GOOGLE_CLIENT_SECRET,
+                process.env.OAUTH_REDIRECT_URI,
+              );
+              oauth2Client.setCredentials({ refresh_token: refreshToken });
+
+              const { credentials } = await oauth2Client.refreshAccessToken();
+
+              const ts = timestamps();
+              await collection("users")
+                .doc(currentUserId)
+                .collection("calendarAccounts")
+                .doc(accountDoc.id)
+                .update({
+                  accessToken: credentials.access_token
+                    ? encrypt(credentials.access_token)
+                    : accountData.accessToken,
+                  tokenExpiresAt: credentials.expiry_date
+                    ? new Date(credentials.expiry_date)
+                    : null,
+                  updatedAt: ts.updatedAt,
+                });
+
+              if (credentials.access_token) {
+                accessToken = credentials.access_token;
+              }
+            }
+
+            let resolvedTimeZone = timeZone;
+            if (!resolvedTimeZone) {
+              resolvedTimeZone = timeZoneForMock;
+            }
+
+            const created = await createCalendarEvent(accessToken, {
+              summary,
+              startDateTime,
+              endDateTime,
+              timeZone: resolvedTimeZone,
+              description,
+              attendeeEmails,
+            });
+
+            console.log("=== TOOL RESULT: createEvent ===");
+            console.log(JSON.stringify(created, null, 2));
+
+            return {
+              success: true,
+              eventId: created.id,
+              htmlLink: created.htmlLink,
+              summary: created.summary,
+              start: created.start,
+              end: created.end,
+              attendees: created.attendees,
+            };
+          } catch (error) {
+            console.error("Error creating event:", error);
+            return {
+              error: error instanceof Error ? error.message : "Unknown error creating event",
+            };
           }
         },
       }),

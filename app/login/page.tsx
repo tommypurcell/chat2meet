@@ -6,10 +6,12 @@ import Link from "next/link";
 import { signInWithPopup } from "firebase/auth";
 import { cn } from "@/lib/utils";
 import { getFirebaseAuth, googleAuthProvider } from "@/lib/firebase-client";
+import { useAuth } from "@/lib/auth-context";
 
 function LoginInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { refresh } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -38,12 +40,12 @@ function LoginInner() {
         throw new Error(data.error || "Could not create session");
       }
       await auth.signOut();
+      await refresh();
       if (data.isNew) {
         router.push("/onboarding");
       } else {
         router.push(returnTo);
       }
-      router.refresh();
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Sign-in failed. Try again.";

@@ -14,7 +14,6 @@ function AuthCallbackInner() {
     const error = searchParams.get("error");
     const errorDescription = searchParams.get("error_description");
 
-    // Debug: show what we received
     const allParams: Record<string, string> = {};
     searchParams.forEach((value, key) => {
       allParams[key] = value;
@@ -31,38 +30,52 @@ function AuthCallbackInner() {
       return;
     }
 
-    // Get userId from session storage (set before redirecting to Google)
-    const userId = sessionStorage.getItem("connectingUserId");
-    if (!userId) {
-      setStatus("No user ID found. Please try connecting again.");
-      return;
-    }
+    async function resolveUserIdAndConnect(authCode: string) {
+      // Try sessionStorage first, then fall back to the server session
+      let userId = sessionStorage.getItem("connectingUserId");
 
-    // Exchange code for tokens and save to Firestore
-    fetch("/api/calendar/google/connect", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code, userId }),
-    })
-      .then((res) => res.json())
-      .then((data) => {
+      if (!userId) {
+        try {
+          const meRes = await fetch("/api/auth/me");
+          const meData = await meRes.json();
+          userId = meData?.user?.uid ?? null;
+        } catch {
+          // ignore – will show error below
+        }
+      }
+
+      if (!userId) {
+        setStatus("No user ID found. Please try connecting again.");
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/calendar/google/connect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: authCode, userId }),
+        });
+        const data = await res.json();
+
         if (data.success) {
           setStatus("Calendar connected! Redirecting...");
           sessionStorage.removeItem("connectingUserId");
           setTimeout(() => router.push("/"), 2000);
         } else {
-          // Show detailed error
           const errorDetails = data.details ? `\n\nDetails: ${data.details}` : "";
           setStatus(`Error: ${data.error || "Unknown error"}${errorDetails}`);
           setDebugInfo((prev) =>
             prev + "\n\n--- API Response ---\n" + JSON.stringify(data, null, 2)
           );
         }
-      })
-      .catch((err) => {
-        setStatus(`Network Error: ${err.message}`);
-        setDebugInfo((prev) => prev + "\n\n--- Exception ---\n" + err.toString());
-      });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        setStatus(`Network Error: ${message}`);
+        setDebugInfo((prev) => prev + "\n\n--- Exception ---\n" + String(err));
+      }
+    }
+
+    resolveUserIdAndConnect(code);
   }, [searchParams, router]);
 
   return (

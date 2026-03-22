@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { TimeChip } from "@/components/ui/TimeChip";
@@ -107,13 +107,23 @@ function ChatContent({
   onCloseInvite: () => void;
   onSuggestionClick?: (text: string) => void;
 }) {
-  // Extract time slots from tool results in messages
   const suggestedTimes = messages
     .filter((msg) => msg.role === "assistant")
     .flatMap((msg) => {
       return msg.toolResults
         ?.filter((result: any) => result.toolName === "suggestTimes")
         .flatMap((result: any) => result.result?.suggestedTimes || []) || [];
+    });
+
+  const createdEvents = messages
+    .filter((msg) => msg.role === "assistant")
+    .flatMap((msg) => {
+      return msg.toolResults
+        ?.filter(
+          (result: any) =>
+            result.toolName === "createEvent" && result.result?.success,
+        )
+        .map((result: any) => result.result) || [];
     });
 
   return (
@@ -171,6 +181,67 @@ function ChatContent({
       {showInvitePreview && (
         <InvitePreview onClose={onCloseInvite} />
       )}
+
+      {createdEvents.map((evt: any) => (
+        <div
+          key={evt.eventId}
+          className="mx-4 mb-2 rounded-2xl border border-green-500/30 bg-green-500/10 p-4"
+        >
+          <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span className="text-sm font-semibold">Event created</span>
+          </div>
+          <p className="mt-1.5 text-sm font-medium text-[var(--text-primary)]">
+            {evt.summary}
+          </p>
+          <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+            {new Date(evt.start).toLocaleString(undefined, {
+              weekday: "short",
+              month: "short",
+              day: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+            })}
+            {" – "}
+            {new Date(evt.end).toLocaleString(undefined, {
+              hour: "numeric",
+              minute: "2-digit",
+            })}
+          </p>
+          {evt.attendees?.length > 0 && (
+            <p className="mt-1 text-xs text-[var(--text-tertiary)]">
+              With: {evt.attendees.join(", ")}
+            </p>
+          )}
+          {evt.htmlLink && (
+            <a
+              href={evt.htmlLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-primary)] px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              Open in Google Calendar
+            </a>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -178,8 +249,9 @@ function ChatContent({
 /* ── Main page ────────────────────────────────────────── */
 export default function Home() {
   const { theme, toggle } = useTheme();
-  const { user } = useAuth(); // Get logged-in user
+  const { user, signOut } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
   const [schedulingParticipants, setSchedulingParticipants] = useState<
     SchedulingParticipant[]
   >([]);
@@ -223,8 +295,9 @@ export default function Home() {
         nextWeek.setDate(today.getDate() + 7);
         const rangeLabel = `${today.toISOString().split("T")[0]} → ${nextWeek.toISOString().split("T")[0]}`;
 
+        const tz = user?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
         const response = await fetch(
-          `/api/calendar/google/events?userId=${uid}&timeMin=${today.toISOString()}&timeMax=${nextWeek.toISOString()}&maxResults=100`,
+          `/api/calendar/google/events?userId=${uid}&timeMin=${today.toISOString()}&timeMax=${nextWeek.toISOString()}&maxResults=100&timeZone=${encodeURIComponent(tz)}`,
         );
 
         const data = (await response.json()) as {
@@ -323,6 +396,7 @@ export default function Home() {
   const [networkPickerOpen, setNetworkPickerOpen] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [calendarView, setCalendarView] = useState<CalendarView>("week");
+  const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
   const [calendarWidth, setCalendarWidth] = useState(350);
   const isResizing = useRef(false);
 
@@ -373,6 +447,11 @@ export default function Home() {
     setSchedulingParticipants((prev) =>
       prev.filter((p) => p.memberUserId !== memberUserId),
     );
+  }
+
+  async function handleSignOut() {
+    await signOut();
+    router.push("/login");
   }
 
   return (
@@ -506,13 +585,20 @@ export default function Home() {
 
           {/* User */}
           <div className="border-t border-[var(--divider)] p-3">
-            <Link href="/profile" className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-[var(--bg-tertiary)] transition-colors">
-              <Avatar name="Rae" size={32} />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-[var(--text-primary)]">Rae</p>
-                <p className="truncate text-[11px] text-[var(--text-tertiary)]">Free plan</p>
-              </div>
-            </Link>
+            <div className="flex items-center gap-2 rounded-lg px-2 py-2">
+              <Link href="/profile" className="flex items-center gap-2 min-w-0 flex-1 hover:opacity-80 transition-opacity">
+                <Avatar name={user?.displayName ?? "User"} size={32} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-[var(--text-primary)]">{user?.displayName ?? "User"}</p>
+                  <p className="truncate text-[11px] text-[var(--text-tertiary)]">Free plan</p>
+                </div>
+              </Link>
+              <Button variant="ghost" size="icon" onClick={handleSignOut} aria-label="Sign out" title="Sign out">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -571,7 +657,7 @@ export default function Home() {
               </Link>
               <Link href="/profile">
                 <Button variant="ghost" className="p-1.5" title="Profile">
-                  <Avatar name="Rae" size={24} />
+                  <Avatar name={user?.displayName ?? "User"} size={24} />
                 </Button>
               </Link>
             </div>
@@ -639,21 +725,35 @@ export default function Home() {
               <h2 className="text-sm font-semibold text-[var(--text-primary)]">
                 My Calendar
               </h2>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowCalendar(false)}
-                aria-label="Close calendar"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M18 6L6 18M6 6l12 12"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              </Button>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setCalendarRefreshKey((k) => k + 1)}
+                  aria-label="Refresh calendar"
+                  title="Refresh"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                    <path d="M1 4v6h6M23 20v-6h-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowCalendar(false)}
+                  aria-label="Close calendar"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M18 6L6 18M6 6l12 12"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </Button>
+              </div>
             </div>
             <div className="flex shrink-0 border-b border-[var(--divider)] px-2">
               {(["month", "week", "day", "list"] as const).map((v) => (
@@ -673,7 +773,7 @@ export default function Home() {
               ))}
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
-              <MyCalendarEvents view={calendarView} />
+              <MyCalendarEvents key={calendarRefreshKey} view={calendarView} />
             </div>
           </div>
         )}
@@ -727,8 +827,13 @@ export default function Home() {
           </div>
           <div className="border-t border-[var(--divider)] p-3">
             <div className="flex items-center gap-2 px-2 py-1">
-              <Avatar name="Rae" size={28} />
-              <span className="text-sm font-medium text-[var(--text-primary)]">Rae</span>
+              <Avatar name={user?.displayName ?? "User"} size={28} />
+              <span className="text-sm font-medium text-[var(--text-primary)] flex-1 truncate">{user?.displayName ?? "User"}</span>
+              <Button variant="ghost" size="icon" onClick={handleSignOut} aria-label="Sign out" title="Sign out">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </Button>
             </div>
           </div>
         </div>
@@ -837,6 +942,11 @@ export default function Home() {
                   <path d="M17 11.35A7 7 0 118.65 3 5.5 5.5 0 0017 11.35z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               )}
+            </Button>
+            <Button variant="ghost" size="icon" onClick={handleSignOut} aria-label="Sign out" title="Sign out">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </Button>
           </div>
         </div>

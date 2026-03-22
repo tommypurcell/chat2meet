@@ -7,6 +7,7 @@ import {
 } from "@/lib/calendar-utils";
 import type { SchedulingParticipant } from "@/lib/types";
 import { defaultDevUserId } from "@/lib/dev-user-ids";
+import { AGENT_PLAIN_TEXT_OUTPUT_RULES } from "@/lib/agent-plain-text-prompt";
 import {
   formatCalendarEventsForPrompt,
   formatMockNetworkCalendarsForPrompt,
@@ -121,7 +122,8 @@ On your first message, introduce yourself briefly. Then:
 - For **Janet, Pete, Phil**, use **Demo network calendars** below or tools with ids \`janet\`, \`pete\`, \`phil\` (or \`user_janet\`, etc.). Demo dates are **Mar 15–29, 2026** (\`America/Los_Angeles\`).
 - When a user mentions meeting with someone specific, use your tools to find overlapping free times and suggest specific times
 - Call suggestTimes when you find good meeting times to display them interactively
-${schedulingBlock}`;
+${schedulingBlock}
+${AGENT_PLAIN_TEXT_OUTPUT_RULES}`;
 
   const result = streamText({
     model: google("gemini-2.5-flash-lite"),
@@ -150,7 +152,7 @@ ${schedulingBlock}`;
             .describe("Array of suggested time slots"),
           message: z
             .string()
-            .describe("Brief message explaining why these times work"),
+            .describe("Brief plain-text message (no Markdown) explaining why these times work"),
         }),
         execute: async ({ times, message }) => {
           return { suggestedTimes: times, explanation: message };

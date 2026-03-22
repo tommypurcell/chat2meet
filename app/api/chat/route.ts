@@ -12,6 +12,7 @@ import {
 import type { SchedulingParticipant } from "@/lib/types";
 import { getSessionUserId } from "@/lib/auth-session";
 import { defaultDevUserId } from "@/lib/dev-user-ids";
+import { AGENT_PLAIN_TEXT_OUTPUT_RULES } from "@/lib/agent-plain-text-prompt";
 import {
   formatCalendarEventsForPrompt,
   formatCalendarLoadErrorPrompt,
@@ -272,7 +273,8 @@ On your first message, introduce yourself briefly. Then:
 - For **Janet, Pete, Phil**, and other people in **Demo network calendars**, use the schedules above or call \`getSchedule\` / \`findOverlap\` with ids \`janet\`, \`pete\`, \`phil\` (or legacy \`user_janet\`, etc. — both work). Demo event dates are **Mar 15–29, 2026** (\`America/Los_Angeles\`).
 - When a user mentions meeting with someone specific, use your tools to find overlapping free times and suggest specific times
 - Call suggestTimes when you find good meeting times to display them interactively
-${schedulingBlock}`;
+${schedulingBlock}
+${AGENT_PLAIN_TEXT_OUTPUT_RULES}`;
 
   console.log("=== AGENT INPUT (System Prompt) ===");
   console.log(systemPrompt);
@@ -314,7 +316,7 @@ ${schedulingBlock}`;
             .describe("Array of suggested time slots"),
           message: z
             .string()
-            .describe("Brief message explaining why these times work"),
+            .describe("Brief plain-text message (no Markdown) explaining why these times work"),
         }),
         execute: async ({ times, message }) => {
           console.log("=== TOOL: suggestTimes ===");

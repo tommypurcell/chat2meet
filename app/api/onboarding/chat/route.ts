@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getAuth, getDb } from "@/lib/firebase-admin";
 import { FIREBASE_SESSION_COOKIE } from "@/lib/auth-session";
 import { cookies } from "next/headers";
+import { AGENT_PLAIN_TEXT_OUTPUT_RULES } from "@/lib/agent-plain-text-prompt";
 
 export async function POST(req: Request) {
   const { messages }: { messages: UIMessage[] } = await req.json();
@@ -54,7 +55,9 @@ Guidelines:
 - You can use reasonable defaults: 9 AM start, 5 PM end, 30 min meetings, weekdays only
 - After saving preferences, call completeOnboarding
 
-Today's date is ${new Date().toISOString().split("T")[0]}.`,
+Today's date is ${new Date().toISOString().split("T")[0]}.
+
+${AGENT_PLAIN_TEXT_OUTPUT_RULES}`,
     messages: await convertToModelMessages(messages),
     stopWhen: stepCountIs(5),
     tools: {

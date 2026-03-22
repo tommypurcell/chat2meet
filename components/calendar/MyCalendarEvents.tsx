@@ -281,30 +281,38 @@ function WeekView({ currentDate, getEventsForDate, isToday, formatTime }: {
     return d;
   });
 
-  const hours = Array.from({ length: 13 }, (_, i) => i + 8); // 8 AM to 8 PM
+  const hours = Array.from({ length: 14 }, (_, i) => i + 7); // 7 AM to 9 PM
+  const rowHeight = 60; // 60px per hour
+
+  // Check if today is in this week
+  const now = new Date();
+  const isNowInThisWeek = days.some(d => isToday(d));
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const gridStartMinutes = 7 * 60; // Starts at 7 AM
+  const nowOffset = ((nowMinutes - gridStartMinutes) / 60) * rowHeight;
 
   return (
-    <div className="flex h-full flex-col overflow-x-auto custom-scrollbar">
-      <div className="min-w-[600px] flex-1 flex flex-col">
+    <div className="flex h-full flex-col overflow-x-auto custom-scrollbar bg-[var(--bg-secondary)]">
+      <div className="min-w-[700px] flex-1 flex flex-col">
         {/* Header */}
-        <div className="sticky top-0 z-20 flex bg-[var(--bg-secondary)] border-b border-[var(--divider)]">
-          <div className="w-[50px] shrink-0" />
+        <div className="sticky top-0 z-30 flex bg-[var(--bg-secondary)]/80 backdrop-blur-md border-b border-[var(--divider)]">
+          <div className="w-[60px] shrink-0" />
           {days.map((date) => {
             const today = isToday(date);
             return (
               <div 
                 key={date.toISOString()} 
                 className={cn(
-                  "flex-1 py-1 px-1 text-center border-l border-[var(--divider)] first:border-l-0",
+                  "flex-1 py-3 px-1 text-center border-l border-[var(--divider)]/50 first:border-l-0",
                   today && "bg-[var(--accent-primary)]/5"
                 )}
               >
-                <div className="text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-tight">
+                <div className="text-[10px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">
                   {WEEK_DAYS[date.getDay()]}
                 </div>
                 <div className={cn(
-                  "mx-auto flex h-6 w-6 items-center justify-center rounded-full text-[12px] font-bold mt-0.5",
-                  today ? "bg-[var(--accent-primary)] text-white" : "text-[var(--text-primary)]"
+                  "mx-auto flex h-8 w-8 items-center justify-center rounded-full text-[14px] font-bold mt-1 transition-all",
+                  today ? "bg-[var(--accent-primary)] text-white shadow-[0_0_15px_rgba(0,255,163,0.4)]" : "text-[var(--text-primary)]"
                 )}>
                   {date.getDate()}
                 </div>
@@ -314,49 +322,76 @@ function WeekView({ currentDate, getEventsForDate, isToday, formatTime }: {
         </div>
 
         {/* Grid Body */}
-        <div className="flex-1 relative">
+        <div className="flex-1 relative" style={{ height: hours.length * rowHeight }}>
+          {/* Hour Lines */}
           {hours.map((hour) => (
-            <div key={hour} className="flex h-[40px] border-b border-[var(--divider)] group">
-              {/* Time Label */}
-              <div className="w-[50px] shrink-0 text-right pr-2 text-[10px] text-[var(--text-tertiary)] pt-1 font-medium bg-[var(--bg-secondary)] sticky left-0 z-10">
+            <div 
+              key={hour} 
+              className="absolute left-0 right-0 border-b border-[var(--divider)]/30 flex"
+              style={{ top: (hour - 7) * rowHeight, height: rowHeight }}
+            >
+              <div className="w-[60px] shrink-0 text-right pr-3 text-[10px] text-[var(--text-tertiary)] pt-1 font-semibold sticky left-0 z-20 bg-[var(--bg-secondary)]/90">
                 {hour === 12 ? "12 PM" : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
               </div>
+              {days.map((_, i) => (
+                <div key={i} className="flex-1 border-l border-[var(--divider)]/30" />
+              ))}
+            </div>
+          ))}
 
-              {/* Day Cells for this hour */}
+          {/* Current Time Line */}
+          {isNowInThisWeek && nowOffset >= 0 && nowOffset < hours.length * rowHeight && (
+            <div 
+              className="absolute left-0 right-0 z-20 pointer-events-none flex items-center"
+              style={{ top: nowOffset }}
+            >
+              <div className="w-[60px] flex justify-end">
+                 <div className="h-2 w-2 rounded-full bg-[var(--accent-danger)] mr-[-4px]" />
+              </div>
+              <div className="flex-1 h-px bg-[var(--accent-danger)] shadow-[0_0_8px_rgba(255,107,107,0.5)]" />
+            </div>
+          )}
+
+          {/* Events Layer */}
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="flex h-full ml-[60px]">
               {days.map((date, dayIdx) => {
-                const dayEvents = getEventsForDate(date).filter(e => new Date(e.start).getHours() === hour);
-                const today = isToday(date);
-
+                const dayEvents = getEventsForDate(date);
                 return (
-                  <div 
-                    key={`${dayIdx}-${hour}`} 
-                    className={cn(
-                      "flex-1 border-l border-[var(--divider)] first:border-l-0 relative p-0.5 hover:bg-[var(--bg-tertiary)]/30 transition-colors",
-                      today && "bg-[var(--accent-primary)]/5"
-                    )}
-                  >
+                  <div key={dayIdx} className="flex-1 relative">
                     {dayEvents.map(event => {
                       const start = new Date(event.start);
                       const end = new Date(event.end);
-                      const startMin = start.getMinutes();
-                      const endMin = end.getMinutes();
-                      const durationMin = (end.getTime() - start.getTime()) / 60000;
+                      const startMins = start.getHours() * 60 + start.getMinutes();
+                      const endMins = end.getHours() * 60 + end.getMinutes();
                       
-                      // Simplified positioning inside the hour cell
-                      // (For more precision, we'd need absolute positioning over the whole grid, 
-                      // but this is a good start for a compact sidebar)
+                      const top = ((startMins - gridStartMinutes) / 60) * rowHeight;
+                      const height = ((endMins - startMins) / 60) * rowHeight;
+
+                      // Only show if in range
+                      if (top < 0 && top + height <= 0) return null;
+
                       return (
                         <div
                           key={event.id}
-                          className="mb-0.5 rounded-sm bg-[var(--accent-primary)]/20 border-l-2 border-l-[var(--accent-primary)] px-1 py-0.5 overflow-hidden"
-                          title={`${event.summary}\n${formatTime(event.start)} - ${formatTime(event.end)}`}
+                          className="absolute left-[2px] right-[2px] z-10 p-1.5 rounded-lg border border-[var(--accent-primary)]/30 bg-[var(--accent-primary)]/10 backdrop-blur-[2px] pointer-events-auto cursor-default hover:bg-[var(--accent-primary)]/20 transition-all shadow-sm group"
+                          style={{ 
+                            top: Math.max(0, top), 
+                            height: Math.min(hours.length * rowHeight - top, height),
+                            minHeight: 24
+                          }}
                         >
-                          <p className="text-[9px] font-semibold text-[var(--text-primary)] truncate leading-tight">
-                            {event.summary}
-                          </p>
-                          <p className="text-[8px] text-[var(--text-tertiary)] truncate leading-tight">
-                            {formatTime(event.start)}
-                          </p>
+                          <div className="absolute inset-y-0 left-0 w-1 bg-[var(--accent-primary)] rounded-l-lg opacity-60 group-hover:opacity-100 transition-opacity" />
+                          <div className="pl-1 overflow-hidden h-full">
+                            <p className="text-[11px] font-bold text-[var(--accent-primary)] truncate leading-tight filter brightness-125">
+                              {event.summary}
+                            </p>
+                            {height > 35 && (
+                              <p className="text-[9px] text-[var(--text-tertiary)] font-medium mt-0.5">
+                                {formatTime(event.start)}
+                              </p>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -364,7 +399,7 @@ function WeekView({ currentDate, getEventsForDate, isToday, formatTime }: {
                 );
               })}
             </div>
-          ))}
+          </div>
         </div>
       </div>
     </div>

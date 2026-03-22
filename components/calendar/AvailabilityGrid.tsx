@@ -197,35 +197,7 @@ export function AvailabilityGrid({ timePosition = "left" }: AvailabilityGridProp
     setPainting(false);
   }, []);
 
-  function getHeatColor(dayIdx: number, slotIdx: number): string {
-    const key: CellKey = `${dayIdx}-${slotIdx}`;
-    const isSelected = selected.has(key);
-    const isBusy = busySlots.has(key);
 
-    if (isSelected && isBusy) {
-      return "rgba(0, 255, 163, 0.8)";
-    }
-    if (isSelected) {
-      return "var(--accent-primary)";
-    }
-    if (isBusy) {
-      return "rgba(0, 255, 163, 0.15)";
-    }
-    return "transparent";
-  }
-
-  const TimeColumn = ({ time, isHour }: { time: string, isHour: boolean }) => (
-    <td
-      className={cn(
-        "sticky z-10 bg-[var(--bg-primary)] text-[11px] font-medium text-[var(--text-tertiary)]",
-        timePosition === "left" ? "left-0 pr-2 text-right" : "right-0 pl-2 text-left",
-        isHour ? "pt-1" : "pt-0",
-      )}
-      style={{ width: 50, height: 28 }}
-    >
-      {isHour ? time : ""}
-    </td>
-  );
 
   return (
     <div className="flex h-full flex-col">
@@ -254,53 +226,66 @@ export function AvailabilityGrid({ timePosition = "left" }: AvailabilityGridProp
         onTouchMove={onPointerMove}
         onTouchEnd={onPointerUp}
       >
-        <table className="w-full border-collapse" style={{ minWidth: 7 * 50 + 50 }}>
+        <table className="w-full border-collapse" style={{ minWidth: 7 * 50 + 60 }}>
           <thead>
-            <tr>
-              {timePosition === "left" && <th className="sticky left-0 z-10 w-[50px] bg-[var(--bg-primary)] p-0" />}
+            <tr className="sticky top-0 z-30 bg-[var(--bg-primary)]/80 backdrop-blur-md">
+              {timePosition === "left" && <th className="sticky left-0 z-40 w-[60px] bg-[var(--bg-primary)] border-b border-[var(--divider)]/50 p-0" />}
               {Array.from({ length: 7 }).map((_, i) => {
                 const now = new Date();
                 const d = new Date(now);
                 d.setDate(now.getDate() - now.getDay() + i);
                 const dayName = WEEK_DAYS[d.getDay()];
                 const dayNum = d.getDate();
+                const today = d.getDate() === now.getDate() && d.getMonth() === now.getMonth();
+                
                 return (
                   <th
                     key={i}
-                    className="border-b border-[var(--divider)] px-1 py-1.5 text-center text-[10px] font-semibold text-[var(--text-tertiary)]"
+                    className={cn(
+                      "border-b border-[var(--divider)]/50 px-1 py-2 text-center transition-colors",
+                      today && "bg-[var(--accent-primary)]/5"
+                    )}
                   >
-                    {dayName}
-                    <div className="text-[12px] text-[var(--text-primary)]">{dayNum}</div>
+                    <div className="text-[9px] font-bold text-[var(--text-tertiary)] uppercase tracking-widest">{dayName}</div>
+                    <div className={cn(
+                      "mx-auto flex h-6 w-6 items-center justify-center rounded-full text-[12px] font-bold mt-0.5",
+                      today ? "bg-[var(--accent-primary)] text-white shadow-[0_0_10px_rgba(0,255,163,0.3)]" : "text-[var(--text-primary)]"
+                    )}>{dayNum}</div>
                   </th>
                 );
               })}
-              {timePosition === "right" && <th className="sticky right-0 z-10 w-[50px] bg-[var(--bg-primary)] p-0" />}
+              {timePosition === "right" && <th className="sticky right-0 z-40 w-[60px] bg-[var(--bg-primary)] border-b border-[var(--divider)]/50 p-0" />}
             </tr>
           </thead>
           <tbody>
             {TIME_SLOTS.map((time, slotIdx) => {
               const isHour = time.endsWith(":00");
               return (
-                <tr key={time}>
-                  {timePosition === "left" && <TimeColumn time={time} isHour={isHour} />}
+                <tr key={time} className="group">
+                  {timePosition === "left" && (
+                    <td className="sticky left-0 z-20 bg-[var(--bg-primary)]/90 text-[10px] font-semibold text-[var(--text-tertiary)] text-right pr-3 pt-1 border-r border-[var(--divider)]/20" style={{ width: 60, height: 28 }}>
+                      {isHour ? time : ""}
+                    </td>
+                  )}
                   {[0, 1, 2, 3, 4, 5, 6].map((dayIdx) => {
                     const key: CellKey = `${dayIdx}-${slotIdx}`;
-                    const bg = getHeatColor(dayIdx, slotIdx);
+
                     const isSelected = selected.has(key);
+                    const isBusy = busySlots.has(key);
+                    
                     return (
                       <td
                         key={key}
                         data-cell={key}
                         className={cn(
-                          "cursor-pointer border-r border-[var(--divider)] transition-colors duration-75",
-                          isHour
-                            ? "border-t border-t-[var(--divider)]"
-                            : "border-t border-t-[var(--divider)]/30",
+                          "cursor-pointer border-r border-[var(--divider)]/20 transition-all duration-75 relative",
+                          isHour ? "border-t border-t-[var(--divider)]/40" : "border-t border-t-[var(--divider)]/10",
+                          isSelected && "z-10"
                         )}
                         style={{
-                          background: bg,
+                          background: isSelected ? "var(--accent-primary)" : isBusy ? "rgba(0,255,163,0.15)" : "transparent",
                           height: 28,
-                          boxShadow: isSelected ? "inset 0 0 0 1px var(--accent-primary)" : "none",
+                          boxShadow: isSelected ? "0 0 15px rgba(0, 255, 163, 0.4), inset 0 0 0 1px rgba(255,255,255,0.2)" : "none",
                         }}
                         onMouseDown={(e) => {
                           e.preventDefault();
@@ -310,10 +295,22 @@ export function AvailabilityGrid({ timePosition = "left" }: AvailabilityGridProp
                           e.preventDefault();
                           onPointerDown(dayIdx, slotIdx);
                         }}
-                      />
+                      >
+                        {isSelected && isBusy && (
+                          <div className="absolute inset-0 flex items-center justify-center opacity-30">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" className="text-white">
+                              <path d="M20 6L9 17L4 12" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </div>
+                        )}
+                      </td>
                     );
                   })}
-                  {timePosition === "right" && <TimeColumn time={time} isHour={isHour} />}
+                  {timePosition === "right" && (
+                    <td className="sticky right-0 z-20 bg-[var(--bg-primary)]/90 text-[10px] font-semibold text-[var(--text-tertiary)] text-left pl-3 pt-1 border-l border-[var(--divider)]/20" style={{ width: 60, height: 28 }}>
+                      {isHour ? time : ""}
+                    </td>
+                  )}
                 </tr>
               );
              })}

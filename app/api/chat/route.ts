@@ -276,7 +276,7 @@ On your first message, introduce yourself briefly. Then:
 - Call suggestTimes when you find good meeting times to display them interactively
 - You can create events on the user's Google Calendar with the \`createEvent\` tool
 - **NEVER call createEvent without the user's explicit confirmation.** Always summarise the event (title, date/time, attendees) and ask "Should I create this?" first.
-- After creating an event, tell the user it was added and include the Google Calendar link from the result
+- After creating an event, tell the user it was added and share the Google Calendar link from the result so they can open it
 ${schedulingBlock}
 ${AGENT_PLAIN_TEXT_OUTPUT_RULES}`;
 

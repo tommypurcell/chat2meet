@@ -19,11 +19,7 @@ import { SchedulingParticipantsBar } from "@/components/chat/SchedulingParticipa
 import { NetworkPickerModal } from "@/components/network/NetworkPickerModal";
 import { useTheme } from "@/lib/theme";
 import { useAuth } from "@/lib/auth-context";
-import {
-  clearChatMessages,
-  loadChatMessages,
-  saveChatMessages,
-} from "@/lib/chat-storage";
+import { clearChatMessages } from "@/lib/chat-storage";
 import {
   loadSchedulingParticipants,
   saveSchedulingParticipants,
@@ -84,6 +80,38 @@ function InvitePreview({ onClose }: { onClose: () => void }) {
         </Button>
       </div>
     </div>
+  );
+}
+
+const URL_RE = /(https?:\/\/[^\s)>\]]+)/g;
+
+function Linkify({ text }: { text: string }) {
+  const parts = text.split(URL_RE);
+  return (
+    <>
+      {parts.map((part, i) =>
+        URL_RE.test(part) ? (
+          <a
+            key={i}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[var(--text-link)] underline break-all"
+          >
+            {(() => {
+              try {
+                const u = new URL(part);
+                return u.hostname + (u.pathname !== "/" ? u.pathname.slice(0, 30) + (u.pathname.length > 30 ? "…" : "") : "");
+              } catch {
+                return part;
+              }
+            })()}
+          </a>
+        ) : (
+          part
+        ),
+      )}
+    </>
   );
 }
 
@@ -150,8 +178,12 @@ function ChatContent({
         messages.map((msg) => (
           <ChatMessage key={msg.id} role={msg.role}>
             <span className="whitespace-pre-wrap">
-              {mergeUiMessageTextParts(msg.parts) ||
-                (typeof msg.content === "string" ? msg.content : "")}
+              <Linkify
+                text={
+                  mergeUiMessageTextParts(msg.parts) ||
+                  (typeof msg.content === "string" ? msg.content : "")
+                }
+              />
             </span>
           </ChatMessage>
         ))
@@ -368,24 +400,9 @@ export default function Home() {
     [],
   );
 
-  const [chatHydrated, setChatHydrated] = useState(false);
-
   const { messages, sendMessage, status, setMessages, stop } = useChat({
     transport,
   });
-
-  useEffect(() => {
-    const saved = loadChatMessages();
-    if (saved.length > 0) {
-      setMessages(saved);
-    }
-    setChatHydrated(true);
-  }, [setMessages]);
-
-  useEffect(() => {
-    if (!chatHydrated) return;
-    saveChatMessages(messages);
-  }, [messages, chatHydrated]);
   const isLoading = status === "submitted" || status === "streaming";
   const chatStarted = messages.length > 0;
 

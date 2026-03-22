@@ -1,24 +1,68 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { AddFriendsModal } from "@/components/events/AddFriendsModal";
-import { MOCK_FRIENDS } from "@/lib/mock-data";
-import { cn } from "@/lib/utils";
-import type { Friend } from "@/lib/mock-data";
+import { useAuth } from "@/lib/auth-context";
+import { useRouter } from "next/navigation";
+
+interface Friend {
+  id: string;
+  name: string;
+  email: string;
+  status: "accepted" | "pending";
+}
 
 export default function NetworkPage() {
-  const [friends, setFriends] = useState<Friend[]>(MOCK_FRIENDS);
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+
+    async function fetchFriends() {
+      try {
+        const res = await fetch("/api/friends");
+        if (res.ok) {
+          const data = await res.json();
+          setFriends(data.friends || []);
+        }
+      } catch (err) {
+        console.error("Failed to fetch friends:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchFriends();
+  }, [user, authLoading, router]);
 
   const acceptedFriends = friends.filter((f) => f.status === "accepted");
   const pendingFriends = friends.filter((f) => f.status === "pending");
 
-  function handleRemoveFriend(id: string) {
-    setFriends(friends.filter((f) => f.id !== id));
+  async function handleRemoveFriend(id: string) {
+    try {
+      const res = await fetch("/api/friends", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ friendId: id }),
+      });
+      if (res.ok) {
+        setFriends(friends.filter((f) => f.id !== id));
+      }
+    } catch (err) {
+      console.error("Failed to remove friend:", err);
+    }
   }
 
   function handleAcceptFriend(id: string) {
@@ -30,17 +74,35 @@ export default function NetworkPage() {
   }
 
   function handleDeclineFriend(id: string) {
-    setFriends(friends.filter((f) => f.id !== id));
+    handleRemoveFriend(id);
   }
 
-  function handleInviteFriends(emails: string[]) {
-    const newFriends: Friend[] = emails.map((email, i) => ({
-      id: `f${friends.length + i}`,
-      name: email.split("@")[0],
-      email,
-      status: "pending",
-    }));
-    setFriends([...friends, ...newFriends]);
+  async function handleInviteFriends(emails: string[]) {
+    try {
+      const res = await fetch("/api/friends", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emails }),
+      });
+      if (res.ok) {
+        // Re-fetch friends list to get accurate data
+        const friendsRes = await fetch("/api/friends");
+        if (friendsRes.ok) {
+          const data = await friendsRes.json();
+          setFriends(data.friends || []);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to invite friends:", err);
+    }
+  }
+
+  if (authLoading || loading) {
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center bg-[var(--bg-primary)]">
+        <p className="text-sm text-[var(--text-tertiary)]">Loading...</p>
+      </div>
+    );
   }
 
   return (
@@ -188,25 +250,9 @@ function EmptyState({ onAddClick }: { onAddClick: () => void }) {
           fill="none"
           aria-hidden
         >
-          <circle
-            cx="12"
-            cy="8"
-            r="3"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
-          <path
-            d="M6 20c0-3 2-5 6-5s6 2 6 5"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
-          <path
-            d="M20 12h2M2 12h2"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
+          <circle cx="12" cy="8" r="3" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M6 20c0-3 2-5 6-5s6 2 6 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          <path d="M20 12h2M2 12h2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
       </div>
       <div>

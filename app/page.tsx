@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
@@ -56,6 +56,32 @@ export default function Home() {
   const [screensMenuOpen, setScreensMenuOpen] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [calendarView, setCalendarView] = useState<CalendarView>("week");
+  const [calendarWidth, setCalendarWidth] = useState(350);
+  const isResizing = useRef(false);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizing.current = true;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing.current) return;
+      const newWidth = window.innerWidth - e.clientX;
+      setCalendarWidth(Math.max(280, Math.min(700, newWidth)));
+    };
+
+    const handleMouseUp = () => {
+      isResizing.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  }, []);
 
   const visibleDates = MARCH_DATES.filter(
     (d) => d.day >= 16 && d.day <= 22,
@@ -328,7 +354,12 @@ export default function Home() {
 
         {/* ── Right column: Weekly Calendar ──────────────── */}
         {showCalendar && (
-          <div className="flex w-[350px] shrink-0 flex-col border-l border-[var(--divider)] bg-[var(--bg-secondary)] animate-in slide-in-from-right duration-300">
+          <div className="relative flex shrink-0 flex-col border-l border-[var(--divider)] bg-[var(--bg-secondary)] animate-in slide-in-from-right duration-300" style={{ width: calendarWidth }}>
+            {/* Resize handle */}
+            <div
+              onMouseDown={handleMouseDown}
+              className="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize z-10 hover:bg-[var(--accent-primary)] transition-colors"
+            />
             <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-3">
               <h2 className="text-sm font-semibold text-[var(--text-primary)]">My Calendar</h2>
               <Button variant="ghost" size="icon" onClick={() => setShowCalendar(false)}>

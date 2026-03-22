@@ -22,8 +22,7 @@ export const GOOGLE_OAUTH_SCOPES = [
   "openid",
   "email",
   "profile",
-  "https://www.googleapis.com/auth/calendar.readonly",
-  "https://www.googleapis.com/auth/calendar.events.readonly",
+  "https://www.googleapis.com/auth/calendar.events",
 ];
 
 export interface GoogleTokens {
@@ -210,6 +209,77 @@ export function extractBusyTimes(events: GoogleCalendarEvent[]): BusyTime[] {
       start: event.start.dateTime!,
       end: event.end.dateTime!,
     }));
+}
+
+export interface CreateEventParams {
+  summary: string;
+  description?: string;
+  startDateTime: string;
+  endDateTime: string;
+  timeZone?: string;
+  attendeeEmails?: string[];
+}
+
+export interface CreatedEvent {
+  id: string;
+  htmlLink: string;
+  summary: string;
+  start: string;
+  end: string;
+  attendees: string[];
+}
+
+/**
+ * Create an event on the user's primary Google Calendar.
+ * Requires the `calendar.events` scope.
+ */
+export async function createCalendarEvent(
+  accessToken: string,
+  params: CreateEventParams,
+): Promise<CreatedEvent> {
+  const body: Record<string, unknown> = {
+    summary: params.summary,
+    start: { dateTime: params.startDateTime, timeZone: params.timeZone },
+    end: { dateTime: params.endDateTime, timeZone: params.timeZone },
+  };
+
+  if (params.description) {
+    body.description = params.description;
+  }
+
+  if (params.attendeeEmails?.length) {
+    body.attendees = params.attendeeEmails.map((email) => ({ email }));
+  }
+
+  const url = new URL(
+    "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+  );
+  url.searchParams.set("sendUpdates", "all");
+
+  const response = await fetch(url.toString(), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Failed to create calendar event: ${error}`);
+  }
+
+  const data = await response.json();
+  return {
+    id: data.id,
+    htmlLink: data.htmlLink,
+    summary: data.summary ?? params.summary,
+    start: data.start?.dateTime ?? data.start?.date ?? params.startDateTime,
+    end: data.end?.dateTime ?? data.end?.date ?? params.endDateTime,
+    attendees:
+      data.attendees?.map((a: { email: string }) => a.email) ?? params.attendeeEmails ?? [],
+  };
 }
 
 /**

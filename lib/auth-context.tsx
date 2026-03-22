@@ -23,6 +23,7 @@ type AuthContextValue = {
   user: AuthUser | null;
   loading: boolean;
   refresh: () => Promise<void>;
+  signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -41,13 +42,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(data.user);
   }, []);
 
+  const signOut = useCallback(async () => {
+    await fetch("/api/auth/signout", { method: "POST", credentials: "include" });
+    const { getFirebaseAuth } = await import("@/lib/firebase-client");
+    await getFirebaseAuth().signOut();
+    setUser(null);
+  }, []);
+
   useEffect(() => {
     refresh().finally(() => setLoading(false));
   }, [refresh]);
 
   const value = useMemo(
-    () => ({ user, loading, refresh }),
-    [user, loading, refresh],
+    () => ({ user, loading, refresh, signOut }),
+    [user, loading, refresh, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

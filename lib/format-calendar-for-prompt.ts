@@ -51,16 +51,19 @@ No timed events in this window — the calendar looks free (no dateTime events i
       weekday: "short",
       month: "short",
       day: "numeric",
+      timeZone,
     });
     const startTime = start.toLocaleTimeString("en-US", {
       hour: "numeric",
       minute: "2-digit",
       hour12: true,
+      timeZone,
     });
     const endTime = end.toLocaleTimeString("en-US", {
       hour: "numeric",
       minute: "2-digit",
       hour12: true,
+      timeZone,
     });
 
     lines += `- **${event.summary || "Busy"}** — ${dateStr}, ${startTime}–${endTime}\n`;

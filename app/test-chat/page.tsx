@@ -27,6 +27,7 @@ import {
   saveSchedulingParticipants,
 } from "@/lib/scheduling-storage";
 import type { SchedulingParticipant } from "@/lib/types";
+import { extractSuggestedTimesFromMessages } from "@/lib/chat-tool-outputs";
 import { cn, mergeUiMessageTextParts } from "@/lib/utils";
 import {
   CHAT_SUGGESTIONS,
@@ -104,14 +105,7 @@ function ChatContent({
   onCloseInvite: () => void;
   onSuggestionClick?: (text: string) => void;
 }) {
-  // Extract time slots from tool results in messages
-  const suggestedTimes = messages
-    .filter((msg) => msg.role === "assistant")
-    .flatMap((msg) => {
-      return msg.toolResults
-        ?.filter((result: any) => result.toolName === "suggestTimes")
-        .flatMap((result: any) => result.result?.suggestedTimes || []) || [];
-    });
+  const suggestedTimes = extractSuggestedTimesFromMessages(messages);
 
   return (
     <div>

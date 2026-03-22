@@ -35,6 +35,10 @@ import {
   formatCalendarLoadErrorPrompt,
   formatNoCalendarConnectedPrompt,
 } from "@/lib/format-calendar-for-prompt";
+import {
+  extractCreateEventResultsFromMessages,
+  extractSuggestedTimesFromMessages,
+} from "@/lib/chat-tool-outputs";
 import { calendarDateInTimeZone } from "@/lib/date-in-timezone";
 import { cn, mergeUiMessageTextParts } from "@/lib/utils";
 import {
@@ -109,24 +113,8 @@ function ChatContent({
   onCloseInvite: () => void;
   onSuggestionClick?: (text: string) => void;
 }) {
-  const suggestedTimes = messages
-    .filter((msg) => msg.role === "assistant")
-    .flatMap((msg) => {
-      return msg.toolResults
-        ?.filter((result: any) => result.toolName === "suggestTimes")
-        .flatMap((result: any) => result.result?.suggestedTimes || []) || [];
-    });
-
-  const createdEvents = messages
-    .filter((msg) => msg.role === "assistant")
-    .flatMap((msg) => {
-      return msg.toolResults
-        ?.filter(
-          (result: any) =>
-            result.toolName === "createEvent" && result.result?.success,
-        )
-        .map((result: any) => result.result) || [];
-    });
+  const suggestedTimes = extractSuggestedTimesFromMessages(messages);
+  const createdEvents = extractCreateEventResultsFromMessages(messages);
 
   return (
     <div>

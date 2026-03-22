@@ -601,22 +601,32 @@ export default function Home() {
             <div className="mt-3 flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-4" />
           )}
 
-          {/* User */}
+          {/* User / Auth Section */}
           <div className="border-t border-[var(--divider)] p-3">
-            <div className="flex items-center gap-2 rounded-lg px-2 py-2">
-              <Link href="/profile" className="flex items-center gap-2 min-w-0 flex-1 hover:opacity-80 transition-opacity">
-                <Avatar name={user?.displayName ?? "User"} size={32} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-[var(--text-primary)]">{user?.displayName ?? "User"}</p>
-                  <p className="truncate text-[11px] text-[var(--text-tertiary)]">Free plan</p>
-                </div>
+            {user ? (
+              // Logged in - show user profile
+              <div className="flex items-center gap-2 rounded-lg px-2 py-2">
+                <Link href="/profile" className="flex items-center gap-2 min-w-0 flex-1 hover:opacity-80 transition-opacity">
+                  <Avatar name={user.displayName ?? "User"} size={32} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-[var(--text-primary)]">{user.displayName ?? "User"}</p>
+                    <p className="truncate text-[11px] text-[var(--text-tertiary)]">Free plan</p>
+                  </div>
+                </Link>
+                <Button variant="ghost" size="icon" onClick={handleSignOut} aria-label="Sign out" title="Sign out">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </Button>
+              </div>
+            ) : (
+              // Not logged in - show login button
+              <Link href="/auth">
+                <Button variant="primary" size="md" className="w-full justify-center font-medium">
+                  Sign Up / Log In
+                </Button>
               </Link>
-              <Button variant="ghost" size="icon" onClick={handleSignOut} aria-label="Sign out" title="Sign out">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </Button>
-            </div>
+            )}
           </div>
         </div>
 
@@ -697,11 +707,19 @@ export default function Home() {
                   </svg>
                 </Button>
               </Link>
-              <Link href="/profile">
-                <Button variant="ghost" className="p-1.5" title="Profile">
-                  <Avatar name={user?.displayName ?? "User"} size={24} />
-                </Button>
-              </Link>
+              {user ? (
+                <Link href="/profile">
+                  <Button variant="ghost" className="p-1.5" title="Profile">
+                    <Avatar name={user.displayName ?? "User"} size={24} />
+                  </Button>
+                </Link>
+              ) : (
+                <Link href="/auth">
+                  <Button variant="primary" size="sm" className="font-medium">
+                    Sign Up
+                  </Button>
+                </Link>
+              )}
             </div>
           </div>
 

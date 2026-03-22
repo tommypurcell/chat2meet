@@ -20,13 +20,32 @@ Creates `users`, `network`, `events/event_demo_pickleball`, participants, and av
 
 ```
 users
+users/{userId}/calendarAccounts   # Google OAuth tokens (encrypted), etc.
 network
 events
 events/{eventId}/participants
 events/{eventId}/availability
+calendars                         # Optional snapshots from home sync (see below)
 ```
 
-**Not in MVP:** `events/{eventId}/messages` (skip messaging for now).
+**Not in MVP:** `events/{eventId}/messages` (chat persistence is client localStorage unless you add this).
+
+---
+
+## `calendars/{userId}`
+
+Written by **`POST /api/calendars/sync`** after the client loads Google Calendar events on the home page. Document id equals the signed-in user’s Firebase **uid**.
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `userId` | string | Same as document id |
+| `displayName` | string or null | From profile when provided |
+| `provider` | string | e.g. `google` |
+| `events` | array | Sanitized event objects (summary, start/end, …) |
+| `totalEvents` | number | |
+| `timeMin`, `timeMax` | string or null | ISO range used for the fetch |
+| `timezone` | string | IANA zone used when syncing |
+| `updatedAt`, `lastSyncedAt` | timestamp | Server timestamps |
 
 ---
 

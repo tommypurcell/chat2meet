@@ -119,13 +119,13 @@ userId: "user_tommy"
 
 ---
 
-### 4. **Agent Model is `gemini-2.5-flash-lite` (Not Anthropic)**
+### 4. **Agent Model is `gemini-3-flash-preview` (Google via AI SDK; not Anthropic by default)**
 
 **Problem**: The chat API uses Google's Gemini model instead of Anthropic's Claude:
 
 ```typescript
 // app/api/chat/route.ts:65
-model: google("gemini-2.5-flash-lite")
+model: google("gemini-3-flash-preview")
 ```
 
 **Implications**:
@@ -343,7 +343,7 @@ Use this to verify the integration is working:
                  ▼
 ┌─────────────────────────────────────────────────────────┐
 │  Chat API Route (app/api/chat/route.ts)                 │
-│  - Model: gemini-2.5-flash-lite                          │
+│  - Model: gemini-3-flash-preview (env: GEMINI_MODEL)     │
 │  - Tools: getSchedule, findOverlap, suggestTimes         │
 └────────────────┬────────────────────────────────────────┘
                  │

@@ -2,11 +2,11 @@
 
 Base URL in development: `http://localhost:3000`. All JSON bodies use `Content-Type: application/json`.
 
-**Auth:** None yet — treat as internal / dev-only until you add verification.
+**Auth:** Core CRUD samples below assume internal/dev use. In production, prefer **session cookies** (`firebase_session`) for routes that read the current user. See **Auth & chat** and **Calendar** subsections.
 
 **Errors:** Most failures return `{ "error": string }` with 4xx/5xx. Success bodies vary by route below.
 
-### Route index
+### Route index (core CRUD)
 
 | Path | Methods |
 | --- | --- |
@@ -21,6 +21,26 @@ Base URL in development: `http://localhost:3000`. All JSON bodies use `Content-T
 | `/api/events/[eventId]/participants/[userId]` | GET, PATCH, DELETE |
 | `/api/events/[eventId]/availability` | GET, POST |
 | `/api/events/[eventId]/availability/[userId]` | GET, PATCH, DELETE |
+
+### Route index (auth, chat, calendar)
+
+| Path | Methods | Notes |
+| --- | --- | --- |
+| `/api/auth/session` | POST | Exchange Firebase ID token for session cookie |
+| `/api/auth/me` | GET | Current user profile (session) |
+| `/api/auth/signout` | POST | Clear session |
+| `/api/auth/google`, `/api/auth/google/callback` | GET | Google OAuth for Calendar |
+| `/api/chat` | POST | Streaming UI message response; tools + Google/mock calendar |
+| `/api/test-chat` | POST | Same shape as chat; mock-heavy demo |
+| `/api/onboarding/chat` | POST | Onboarding assistant |
+| `/api/user`, `/api/user/[userId]`, `/api/user/availability` | GET, PATCH, … | Profile and preferences |
+| `/api/friends` | GET, POST | Friends / connections |
+| `/api/calendar/google/events` | GET | List events (OAuth, `userId` query) |
+| `/api/calendar/google/connect`, `disconnect`, `busy`, `calendars`, `heatmap`, `auth-url` | GET, POST, … | Google Calendar integration |
+| `/api/calendar/availability` | POST | Multi-user availability slots (server-side math) |
+| `/api/calendars/sync` | POST | Save last-fetched Google events snapshot to **`calendars/{uid}`** (session) |
+
+Full request/response details for Google OAuth and calendar live in [google-calendar-setup.md](./google-calendar-setup.md) and [calendar-agent-integration.md](./calendar-agent-integration.md).
 
 ---
 

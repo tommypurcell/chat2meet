@@ -74,7 +74,15 @@ Pure functions for calendar math:
 
 ### 3. Agent Tools (`/api/chat/route.ts`)
 
-The agent now has two **real** calendar tools:
+The agent exposes scheduling tools (names may vary slightly by route; test-chat mirrors a subset). Typical set:
+
+| Tool | Purpose |
+| --- | --- |
+| `getSchedule` | Events + busy blocks for a user/date range (Google or mock ids) |
+| `findOverlap` | Common free slots across users |
+| `getFriends` | Contacts for scheduling |
+| `suggestTimes` | **Required for UI:** returns structured `{ id, time, date }[]` for chips + heatmap |
+| `createEvent` | Create a Google Calendar event for the signed-in user (see route for schema) |
 
 #### `getSchedule`
 
@@ -226,23 +234,35 @@ Finds common free time slots between multiple users using real Google Calendar d
    })
    ```
 
-10. **User sees interactive time chips** in the chat
+10. **User sees interactive time chips** in the chat (and the optional **heatmap** reads the same `suggestTimes` output)
+
+## Chat transport, timezone, and prompts
+
+- **Client → `POST /api/chat`:** Sends `messages` (UIMessage[]), optional **`calendarContext`** (markdown block built from `GET /api/calendar/google/events` on the client), optional **`schedulingParticipants`**, **`currentUserId`**, and **`userTimezone`** (IANA). The server uses **`userTimezone`** (or Firestore `users.timezone`) so **“today”** in the system prompt matches the user’s local calendar day—not UTC-only `toISOString()` dates.
+- **Plain text:** `lib/agent-plain-text-prompt.ts` is appended to the system prompt so assistant replies avoid Markdown.
+- **Default model:** `gemini-3-flash-preview` via `@ai-sdk/google` (override with `GEMINI_MODEL` where the route reads it).
+
+## UI: tool results and chips / heatmap
+
+AI SDK **v5** stores tool results on assistant messages under **`parts`** (e.g. `type: "tool-suggestTimes"`, `state: "output-available"`, `output: { suggestedTimes, explanation }`). Older code paths assumed **`message.toolResults`**, which is usually empty—**time chips and `AvailabilityHeatmap` would show nothing**. The app uses **`lib/chat-tool-outputs.ts`** (`extractSuggestedTimesFromMessages`, `extractCreateEventResultsFromMessages`) so both **`parts`** and any legacy **`toolResults`** shape work. Assistant **text** is merged with **`mergeUiMessageTextParts`** in `lib/utils.ts` to avoid duplicated paragraphs after multi-step tool runs.
+
+## Firestore snapshot: `calendars/{uid}`
+
+After a successful Google events fetch on the home page, the client calls **`POST /api/calendars/sync`** (session required) to upsert a snapshot document for debugging and future features. See [firebase-mvp.md](./firebase-mvp.md).
 
 ## Data Privacy
 
-- **No raw calendar data** sent to LLM
-- Only **start/end times** processed
-- Event **titles and descriptions** are NOT shared with LLM
-- Calendar **access tokens** are encrypted in Firestore
-- Tokens are **decrypted only on backend** for API calls
+- **Scheduling math** (busy blocks, overlaps) runs on the **server**; the model receives **summaries** you put in the system prompt (e.g. formatted calendar markdown, computed free windows)—not raw OAuth tokens.
+- **Google access tokens** are **encrypted** in Firestore (`users/.../calendarAccounts`) and **decrypted only on the server** for API calls.
+- **End users:** treat calendar event text in prompts as sensitive; tighten logging in development routes if needed.
 
 ## Testing
 
 ### Test the agent with real calendar data:
 
-1. **Connect Google Calendar** at `/test-calendar`
+1. **Connect Google Calendar** (see [google-calendar-setup.md](./google-calendar-setup.md)); you can use **`/test-calendar`** or the main app after sign-in.
 
-2. **Start a chat** on the home page:
+2. **Start a chat** on the **home** page (`/`):
    - "When am I free this week?"
    - "Schedule coffee with Alice tomorrow"
    - "Find time for a 1-hour meeting next Monday"
@@ -281,7 +301,7 @@ Finds common free time slots between multiple users using real Google Calendar d
 
 - [ ] Cache availability data per user to reduce API calls
 - [ ] Support for preferred meeting times (user preferences)
-- [ ] Timezone handling for distributed teams
+- [ ] Deeper multi-timezone testing for distributed teams (partial: local “today” + IANA in prompts)
 - [ ] Multi-calendar support (work + personal calendars)
 - [ ] Smart suggestions based on meeting patterns
-- [ ] Automatic meeting creation after user confirms time
+- [ ] Optional server-side chat history persistence

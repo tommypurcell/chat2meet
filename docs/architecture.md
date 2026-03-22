@@ -3,8 +3,9 @@
 ## Request flow
 
 1. Browser loads App Router pages from `app/`.
-2. The home page is a client component: sidebar, `ChatWindow`, `ChatInput`. Data shown there is still mostly **mock** (`lib/mock-data.ts`); wiring to `/api/*` is the next step.
-3. Route handlers in `app/api/**/route.ts` call **`getDb()`** from `lib/firebase-admin.ts` to read/write Firestore.
+2. **Home** is a client component: sidebar, chat (`useChat`), calendar fetch for agent context, optional My Calendar and heatmap panels. Scheduling participants and chat messages may be persisted in **localStorage** (`lib/scheduling-storage.ts`, `lib/chat-storage.ts`).
+3. Chat requests use **`DefaultChatTransport`** to `POST /api/chat` with **credentials** so the **session cookie** is sent. The body can include `calendarContext` (preformatted markdown from the client), `schedulingParticipants`, `currentUserId`, and **`userTimezone`** (IANA zone for correct “today” in the system prompt).
+4. Route handlers in `app/api/**/route.ts` use **`getDb()`** from `lib/firebase-admin.ts` and often **`getSessionUserId()`** from `lib/auth-session.ts` for authenticated operations.
 
 ## Firebase Admin
 
@@ -21,26 +22,41 @@ Next.js loads `.env` / `.env.local` for API routes. The seed script uses `script
 ### `lib/firebase-admin.ts`
 
 - **`getDb()`** — Firestore (initializes the default app with `getAdminCredential()`)
-- **`getAuth()`** — Admin Auth (future: verify ID tokens)
+- **`getAuth()`** — Admin Auth (session cookies, token verification)
 - **`getServerTimestamp()`** — `FieldValue.serverTimestamp()` for writes
+
+### `lib/auth-session.ts`
+
+- **`getSessionUserId()`** — Verifies `firebase_session` cookie and returns Firebase **uid** (or `null`).
 
 ### `scripts/seed-firestore.ts` & `scripts/load-env.ts`
 
 - `load-env` applies dotenv before importing `getDb`, so credentials match the API.
-- Seed writes the MVP dummy documents (same IDs on each run).
+- Seed writes MVP dummy documents (same IDs on each run where applicable).
+
+## Key libraries (scheduling + chat)
+
+| Module | Role |
+| --- | --- |
+| `lib/calendar-utils.ts` | Busy blocks, free windows, overlap finding |
+| `lib/format-calendar-for-prompt.ts` | Markdown blocks for the LLM from Google or mock data |
+| `lib/mock-calendar-agent.ts` | Demo user ids and mock event filtering |
+| `lib/date-in-timezone.ts` | Local calendar date / clock for agent prompts (avoid UTC-only “today”) |
+| `lib/agent-plain-text-prompt.ts` | Shared “no Markdown” rules for assistant replies |
+| `lib/chat-tool-outputs.ts` | Extract **`suggestTimes`** / **`createEvent`** outputs from **UIMessage `parts`** (AI SDK v5) |
+| `lib/utils.ts` | `mergeUiMessageTextParts` to avoid duplicate paragraphs from multi-step tool runs |
 
 ## `lib/types.ts`
 
-- **Firestore-aligned:** `UserDoc`, `NetworkConnectionDoc`, `EventDoc`, `EventParticipantDoc`, `EventAvailabilityDoc`, plus helpers (`SlotCandidate`, `TimeRange`, …).
-- **UI-only:** `SchedulingEvent`, `ChatSuggestion`, `EventItem`, `MessageRole`.
+Firestore-aligned types (`UserDoc`, connections, events, …) plus UI helpers.
 
-## `lib/mock-data.ts`
+## `lib/data.ts`
 
-Static copy for the chat UI and sidebar until the UI reads from the API.
+Mock connections and demo calendar events for development and agent tools when not using live data.
 
 ## `lib/api-helpers.ts`
 
-Shared helpers for some route handlers: `collection()` (Firestore collection ref), `timestamps()` / `updateTimestamp()`, `errorResponse` / `successResponse`, `getDocOrError`, `extractFields`. Other handlers call `getDb()` from `firebase-admin.ts` directly — both patterns coexist.
+Shared helpers: `collection()`, `timestamps()` / `updateTimestamp()`, `errorResponse` / `successResponse`, `getDocOrError`, `extractFields`.
 
 ## Firestore query notes
 
@@ -51,7 +67,7 @@ Shared helpers for some route handlers: `collection()` (Firestore collection ref
 
 If you see a Turbopack warning about `lib/firebase-credential.ts` and “unexpected file in NFT list”, it comes from `existsSync` / `process.cwd()` when resolving credential paths. `next.config.ts` sets `serverExternalPackages: ["firebase-admin"]` to keep the Admin SDK out of the bundle; the warning is often benign for this setup.
 
-## Security (future)
+## Security (ongoing)
 
-- Route handlers are **unauthenticated**. Add Firebase ID token (or session) checks before production use.
+- Sensitive routes (`/api/chat`, `/api/calendars/sync`, …) should rely on **session** or explicit server-side checks; do not trust `currentUserId` from the client alone when a session exists.
 - Tighten [Firestore security rules](https://firebase.google.com/docs/firestore/security/get-started) if clients ever talk to Firestore directly.

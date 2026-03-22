@@ -1,135 +1,80 @@
 # Testing Agent Calendar Access
 
-## Setup Verification
+## Setup verification
 
-Your agent is now configured to access **user_tommy**'s Google Calendar.
+1. Sign in via the app (`/login`) so you have a real Firebase **`uid`** (not only seed ids).
+2. Connect **Google Calendar** using the in-app flow; confirm `users/{uid}/calendarAccounts` has an active Google account in Firestore.
+3. Open the **home** page (`/`) and send a chat message, or use **`/test-chat`** for mock-calendar-only behavior without relying on your live calendar.
 
-## Test Queries
+## Test queries
 
-Go to **http://localhost:3000** and try these in the chat:
+Try these on **`/`** (production chat → `POST /api/chat`):
 
-### 1. Check Your Own Schedule
+### 1. Check your own schedule
 
-**Try**: "When am I free tomorrow?"
+**Try:** “When am I free tomorrow?”
 
-**What should happen**:
-- Agent calls `getSchedule` with `userId: "user_tommy"`
-- Fetches your real Google Calendar events
-- Shows your actual free times
+**What should happen:**
 
-**Debug**: If this fails, check:
-- Calendar is connected at `/test-calendar`
-- User ID in Firestore is `user_tommy`
-- Calendar account document exists at `users/user_tommy/calendarAccounts/`
+- Agent may call `getSchedule` with your **Firebase uid** (or demo ids like `janet` when using mock data).
+- Response reflects **formatted calendar context** the client attached (`calendarContext`) or server-fetched events.
 
----
+**Debug:**
 
-### 2. Check Specific Date Range
-
-**Try**: "What's on my calendar next week?"
-
-**What should happen**:
-- Agent fetches events from next Monday to Friday
-- Lists your actual meetings/events
-- Summarizes your busy times
+- Browser must send **cookies** to `/api/chat` (`credentials: "include"`).
+- If calendar block is missing, verify `GET /api/calendar/google/events?userId=…` works for your uid.
 
 ---
 
-### 3. Find Your Free Time
+### 2. Check a date range
 
-**Try**: "I need 2 hours free on Friday"
+**Try:** “What’s on my calendar next week?”
 
-**What should happen**:
-- Agent checks Friday's schedule
-- Finds 2+ hour free blocks
-- Suggests specific times
+**What should happen:**
+
+- Agent pulls or reasons over the **next ~7 days** window used in the UI fetch.
 
 ---
 
-### 4. Multi-User Scheduling (with mock users for now)
+### 3. Suggested times and chips
 
-**Try**: "Find time to meet with Alice next week"
+**Try:** “Suggest two meeting times this week for a 30-minute call.”
 
-**What should happen**:
-- Agent queries your calendar (`user_tommy`)
-- Uses mock data for Alice (`u1`)
-- Finds overlapping free slots
+**What should happen:**
 
-**Note**: For real multi-user scheduling, you need to:
-1. Add other users to Firestore as `users/user_alice/`
-2. Connect their Google Calendars
-3. Update the mock user IDs in `getFriends` tool
+- Agent calls **`suggestTimes`** with `{ id, time, date }` entries.
+- **Time chips** appear under the transcript; the **availability heatmap** (if open) highlights those slots.
+
+**If chips or heatmap stay empty:** assistant messages must include tool **`parts`** (`tool-suggestTimes` with `output-available`). The UI uses `lib/chat-tool-outputs.ts` to read them—not legacy `toolResults`.
+
+---
+
+### 4. Multi-user / demo network
+
+**Try:** “Find time for pickleball with Janet and Pete this week.”
+
+**What should happen:**
+
+- Agent uses **demo network calendars** from `lib/data.ts` and/or **`findOverlap`** with known demo user ids (`janet`, `pete`, …) as documented in the system prompt.
 
 ---
 
 ## Debugging
 
-### If agent says "No calendar connected"
+### “No calendar connected”
 
-Check in Firebase Console:
-```
-Firestore → users → user_tommy → calendarAccounts
-```
+Firestore path:
 
-Should see a document with:
-- `provider: "google"`
-- `isActive: true`
-- `accessToken: <encrypted>`
-- `refreshToken: <encrypted>`
+`users/{yourUid}/calendarAccounts` → document with `provider: "google"`, `isActive: true`, encrypted tokens.
 
-### If agent uses wrong user ID
+### Wrong “today” or timezone
 
-Check the system prompt includes:
-```
-The logged-in user's ID is: user_tommy
-```
+Confirm the client sends **`userTimezone`** on chat requests (see `app/page.tsx`) and the user’s `timezone` in Firestore is set when possible.
 
-### If agent can't find events
+### Firestore snapshot not appearing
 
-1. Verify you have events in Google Calendar
-2. Check date range matches
-3. Look for errors in browser console (F12)
-4. Check server logs for API errors
+After loading home with Google connected, check collection **`calendars/{yourUid}`** (from **`POST /api/calendars/sync`**). Run `npx tsx scripts/verify-schema.ts` to list calendar snapshots.
 
----
+### Test-chat only
 
-## Expected Flow
-
-```
-User: "When am I free tomorrow?"
-  ↓
-Agent calls: getSchedule("user_tommy", "2026-03-25", "2026-03-25")
-  ↓
-Backend fetches Google Calendar events
-  ↓
-Agent receives: { events: [...], busyBlocks: [...] }
-  ↓
-Agent responds: "You're free from 2-5 PM tomorrow!"
-```
-
----
-
-## Current Limitations
-
-1. **Single User**: Only `user_tommy` has real calendar data
-2. **Mock Friends**: Alice, Bob, Carmen, David use fake data
-3. **No Multi-Calendar**: Only queries `primary` Google Calendar
-4. **Working Hours**: Assumes 9 AM - 5 PM working hours
-
----
-
-## Next Steps
-
-To enable real multi-user scheduling:
-
-1. **Create test users in Firestore**:
-   ```
-   users/user_alice/
-   users/user_bob/
-   ```
-
-2. **Connect their calendars** via `/test-calendar`
-
-3. **Update scheduling participants** to use real user IDs
-
-4. **Test overlap finding** with real calendar data from multiple users
+`/test-chat` uses **`POST /api/test-chat`** with **mock** calendar data (`lib/data.ts`). Use it to validate tool UX without touching Google.

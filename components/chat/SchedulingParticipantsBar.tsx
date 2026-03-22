@@ -1,19 +1,16 @@
 "use client";
 
 import type { SchedulingParticipant } from "@/lib/types";
-import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 
 export type SchedulingParticipantsBarProps = {
   participants: SchedulingParticipant[];
   onRemove: (memberUserId: string) => void;
-  onAddClick: () => void;
 };
 
 export function SchedulingParticipantsBar({
   participants,
   onRemove,
-  onAddClick,
 }: SchedulingParticipantsBarProps) {
   return (
     <div
@@ -26,15 +23,9 @@ export function SchedulingParticipantsBar({
         Scheduling with
       </span>
       {participants.length === 0 ? (
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          onClick={onAddClick}
-          className="text-xs"
-        >
-          Choose from network
-        </Button>
+        <span className="text-xs text-[var(--text-tertiary)]">
+          No one selected for scheduling in this session.
+        </span>
       ) : (
         <>
           {participants.map((p) => (
@@ -60,15 +51,6 @@ export function SchedulingParticipantsBar({
               </button>
             </span>
           ))}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={onAddClick}
-            className="text-xs"
-          >
-            Change
-          </Button>
         </>
       )}
     </div>

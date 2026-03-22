@@ -1,71 +1,47 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { AddFriendsModal } from "@/components/events/AddFriendsModal";
-import { useAuth } from "@/lib/auth-context";
-import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { MOCK_CONNECTIONS } from "@/lib/data";
 
-interface Friend {
-  id: string;
+type Friend = {
+  id: string;       // Document ID in network collection
+  userId: string;   // memberUserId
   name: string;
   email: string;
   status: "accepted" | "pending";
-}
+};
 
 export default function NetworkPage() {
-  const { user, loading: authLoading } = useAuth();
-  const router = useRouter();
   const [friends, setFriends] = useState<Friend[]>([]);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
-      router.push("/login");
-      return;
-    }
-
-    async function fetchFriends() {
-      try {
-        const res = await fetch("/api/friends");
-        if (res.ok) {
-          const data = await res.json();
-          setFriends(data.friends || []);
-        }
-      } catch (err) {
-        console.error("Failed to fetch friends:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchFriends();
-  }, [user, authLoading, router]);
+    // Simulate fetching from data.ts
+    setLoading(true);
+    setTimeout(() => {
+      setFriends(MOCK_CONNECTIONS);
+      setLoading(false);
+    }, 500);
+  }, []);
 
   const acceptedFriends = friends.filter((f) => f.status === "accepted");
   const pendingFriends = friends.filter((f) => f.status === "pending");
 
-  async function handleRemoveFriend(id: string) {
-    try {
-      const res = await fetch("/api/friends", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ friendId: id }),
-      });
-      if (res.ok) {
-        setFriends(friends.filter((f) => f.id !== id));
-      }
-    } catch (err) {
-      console.error("Failed to remove friend:", err);
-    }
+  function handleRemoveFriend(id: string) {
+    // Ideally this would DELETE /api/network?id=... but keeping it local for now if API isn't built
+    setFriends(friends.filter((f) => f.id !== id));
   }
 
   function handleAcceptFriend(id: string) {
+    // Ideally PATCH /api/network
     setFriends(
       friends.map((f) =>
         f.id === id ? { ...f, status: "accepted" as const } : f
@@ -74,34 +50,25 @@ export default function NetworkPage() {
   }
 
   function handleDeclineFriend(id: string) {
-    handleRemoveFriend(id);
+    setFriends(friends.filter((f) => f.id !== id));
   }
 
-  async function handleInviteFriends(emails: string[]) {
-    try {
-      const res = await fetch("/api/friends", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emails }),
-      });
-      if (res.ok) {
-        const friendsRes = await fetch("/api/friends");
-        if (friendsRes.ok) {
-          const data = await friendsRes.json();
-          setFriends(data.friends || []);
-        }
-      }
-    } catch (err) {
-      console.error("Failed to invite friends:", err);
-    }
-  }
-
-  if (authLoading || loading) {
-    return (
-      <div className="flex min-h-[100dvh] items-center justify-center bg-[var(--bg-primary)]">
-        <p className="text-sm text-[var(--text-tertiary)]">Loading...</p>
-      </div>
+  function handleInviteFriends(selectedUsers: any[]) {
+    // Filter out users already in network
+    const newUsers = selectedUsers.filter(u => 
+      !friends.some(f => f.userId === (u.id || u.uid))
     );
+
+    const newFriends: Friend[] = newUsers.map(user => ({
+      id: `mock-${Math.random().toString(36).substr(2, 9)}`,
+      userId: user.id || user.uid,
+      name: user.name || user.displayName || "Unknown User",
+      email: user.email || "",
+      status: "pending"
+    }));
+
+    setFriends([...friends, ...newFriends]);
+    setModalOpen(false);
   }
 
   return (
@@ -112,7 +79,7 @@ export default function NetworkPage() {
           <Link href="/">
             <Button variant="ghost" size="icon" aria-label="Back">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </Button>
           </Link>
@@ -123,17 +90,20 @@ export default function NetworkPage() {
           size="sm"
           onClick={() => setModalOpen(true)}
         >
-          Add friend
+          Add to network
         </Button>
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-2xl px-6 py-8">
-          {friends.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-12 text-[var(--text-secondary)]">Loading network...</div>
+          ) : friends.length === 0 ? (
             <EmptyState onAddClick={() => setModalOpen(true)} />
           ) : (
             <div className="flex flex-col gap-6">
+              {/* Friends section */}
               {acceptedFriends.length > 0 && (
                 <Card>
                   <CardHeader>
@@ -161,6 +131,7 @@ export default function NetworkPage() {
                 </Card>
               )}
 
+              {/* Pending section */}
               {pendingFriends.length > 0 && (
                 <Card>
                   <CardHeader>
@@ -201,11 +172,12 @@ export default function NetworkPage() {
         </div>
       </div>
 
+      {/* Modal */}
       <AddFriendsModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onInvite={handleInviteFriends}
-        title="Add friends to your network"
+        title="Search users to add"
       />
     </div>
   );
@@ -246,9 +218,25 @@ function EmptyState({ onAddClick }: { onAddClick: () => void }) {
           fill="none"
           aria-hidden
         >
-          <circle cx="12" cy="8" r="3" stroke="currentColor" strokeWidth="1.5" />
-          <path d="M6 20c0-3 2-5 6-5s6 2 6 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          <path d="M20 12h2M2 12h2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          <circle
+            cx="12"
+            cy="8"
+            r="3"
+            stroke="currentColor"
+            strokeWidth="1.5"
+          />
+          <path
+            d="M6 20c0-3 2-5 6-5s6 2 6 5"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
+          <path
+            d="M20 12h2M2 12h2"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
         </svg>
       </div>
       <div>
@@ -256,11 +244,11 @@ function EmptyState({ onAddClick }: { onAddClick: () => void }) {
           No friends yet
         </h2>
         <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          Start building your network by adding friends
+          Search for users to add them to your network
         </p>
       </div>
       <Button variant="primary" onClick={onAddClick}>
-        Add your first friend
+        Add someone
       </Button>
     </div>
   );

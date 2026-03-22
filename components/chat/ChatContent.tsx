@@ -4,6 +4,7 @@ import { ActionBubble } from "./ActionBubble";
 import { TimeChip } from "../ui/TimeChip";
 import { Avatar } from "../ui/Avatar";
 import { CHAT_SUGGESTIONS, SAMPLE_INVITE } from "@/lib/mock-data";
+import { mergeUiMessageTextParts } from "@/lib/utils";
 
 /* ── Invite preview card (Screen 6) ──────────────────── */
 function InvitePreview({ onClose }: { onClose: () => void }) {
@@ -100,12 +101,10 @@ export function ChatContent({
       ) : (
         messages.map((msg) => (
           <ChatMessage key={msg.id} role={msg.role}>
-            {msg.parts
-              ?.map((part: any, i: number) => {
-                if (part.type === "text") return <span key={i} className="whitespace-pre-wrap">{part.text}</span>;
-                return null;
-              })
-              .filter(Boolean) || msg.content}
+            <span className="whitespace-pre-wrap">
+              {mergeUiMessageTextParts(msg.parts) ||
+                (typeof msg.content === "string" ? msg.content : "")}
+            </span>
           </ChatMessage>
         ))
       )}

@@ -1,67 +1,122 @@
 export const MOCK_CALENDAR_EVENTS = {
-  user_phil: [
+  phil: [
+    { start: "2026-03-15T10:00:00-07:00", end: "2026-03-15T11:30:00-07:00", title: "Coffee with Mentor" },
     { start: "2026-03-16T09:00:00-07:00", end: "2026-03-16T10:30:00-07:00", title: "Team Sync" },
+    { start: "2026-03-16T13:00:00-07:00", end: "2026-03-16T14:00:00-07:00", title: "Product Review" },
     { start: "2026-03-17T13:00:00-07:00", end: "2026-03-17T14:00:00-07:00", title: "Lunch Meeting" },
+    { start: "2026-03-18T08:30:00-07:00", end: "2026-03-18T09:30:00-07:00", title: "Morning Standup" },
     { start: "2026-03-18T15:00:00-07:00", end: "2026-03-18T17:00:00-07:00", title: "Project Block" },
+    { start: "2026-03-19T17:30:00-07:00", end: "2026-03-19T19:00:00-07:00", title: "Gym" },
     { start: "2026-03-20T10:00:00-07:00", end: "2026-03-20T11:00:00-07:00", title: "1:1" },
+    { start: "2026-03-21T12:00:00-07:00", end: "2026-03-21T13:30:00-07:00", title: "Lunch with Family" },
     { start: "2026-03-22T18:00:00-07:00", end: "2026-03-22T20:00:00-07:00", title: "Dinner" },
+    { start: "2026-03-23T09:00:00-07:00", end: "2026-03-23T10:00:00-07:00", title: "Sprint Planning" },
     { start: "2026-03-24T09:30:00-07:00", end: "2026-03-24T11:00:00-07:00", title: "Standup + Review" },
     { start: "2026-03-25T14:00:00-07:00", end: "2026-03-25T15:30:00-07:00", title: "Client Call" },
-    { start: "2026-03-27T16:00:00-07:00", end: "2026-03-27T18:00:00-07:00", title: "Deep Work" }
+    { start: "2026-03-26T18:30:00-07:00", end: "2026-03-26T20:30:00-07:00", title: "Basketball" },
+    { start: "2026-03-27T16:00:00-07:00", end: "2026-03-27T18:00:00-07:00", title: "Deep Work" },
+    { start: "2026-03-28T11:00:00-07:00", end: "2026-03-28T12:30:00-07:00", title: "Brunch" },
+    { start: "2026-03-29T15:00:00-07:00", end: "2026-03-29T17:00:00-07:00", title: "Laundry + Errands" }
   ],
 
-  user_pete: [
+  pete: [
     { start: "2026-03-15T11:00:00-07:00", end: "2026-03-15T13:00:00-07:00", title: "Family Brunch" },
+    { start: "2026-03-16T08:00:00-07:00", end: "2026-03-16T09:00:00-07:00", title: "Dentist" },
     { start: "2026-03-17T09:00:00-07:00", end: "2026-03-17T10:00:00-07:00", title: "Weekly Planning" },
+    { start: "2026-03-17T14:00:00-07:00", end: "2026-03-17T15:30:00-07:00", title: "Code Review" },
     { start: "2026-03-18T12:00:00-07:00", end: "2026-03-18T13:30:00-07:00", title: "Gym" },
     { start: "2026-03-19T15:00:00-07:00", end: "2026-03-19T16:30:00-07:00", title: "Doctor" },
+    { start: "2026-03-20T09:30:00-07:00", end: "2026-03-20T10:30:00-07:00", title: "Standup" },
     { start: "2026-03-21T17:00:00-07:00", end: "2026-03-21T20:00:00-07:00", title: "Birthday Dinner" },
+    { start: "2026-03-22T10:00:00-07:00", end: "2026-03-22T11:00:00-07:00", title: "Soccer Game" },
     { start: "2026-03-23T10:00:00-07:00", end: "2026-03-23T11:30:00-07:00", title: "Design Review" },
+    { start: "2026-03-24T13:00:00-07:00", end: "2026-03-24T14:00:00-07:00", title: "Lunch + Walk" },
+    { start: "2026-03-25T18:00:00-07:00", end: "2026-03-25T19:30:00-07:00", title: "Dinner with Friends" },
     { start: "2026-03-26T13:00:00-07:00", end: "2026-03-26T15:00:00-07:00", title: "Workshop" },
-    { start: "2026-03-28T09:00:00-07:00", end: "2026-03-28T12:00:00-07:00", title: "Errands" }
+    { start: "2026-03-27T08:30:00-07:00", end: "2026-03-27T09:30:00-07:00", title: "Budget Review" },
+    { start: "2026-03-28T09:00:00-07:00", end: "2026-03-28T12:00:00-07:00", title: "Errands" },
+    { start: "2026-03-29T17:30:00-07:00", end: "2026-03-29T19:00:00-07:00", title: "Family Dinner" }
   ],
 
-  user_rae: [
+  rae: [
+    { start: "2026-03-15T16:00:00-07:00", end: "2026-03-15T18:00:00-07:00", title: "Hike" },
     { start: "2026-03-16T14:00:00-07:00", end: "2026-03-16T15:30:00-07:00", title: "Product Review" },
+    { start: "2026-03-17T10:00:00-07:00", end: "2026-03-17T11:00:00-07:00", title: "Therapy" },
     { start: "2026-03-17T18:00:00-07:00", end: "2026-03-17T20:00:00-07:00", title: "Dinner Plans" },
     { start: "2026-03-18T09:00:00-07:00", end: "2026-03-18T10:00:00-07:00", title: "Standup" },
+    { start: "2026-03-19T12:00:00-07:00", end: "2026-03-19T13:00:00-07:00", title: "Lunch with Manager" },
     { start: "2026-03-20T13:00:00-07:00", end: "2026-03-20T15:00:00-07:00", title: "Interview Loop" },
+    { start: "2026-03-21T11:00:00-07:00", end: "2026-03-21T12:30:00-07:00", title: "Workout Class" },
     { start: "2026-03-22T10:00:00-07:00", end: "2026-03-22T11:30:00-07:00", title: "Coffee Catchup" },
+    { start: "2026-03-23T15:00:00-07:00", end: "2026-03-23T16:00:00-07:00", title: "Recruiter Call" },
     { start: "2026-03-24T16:00:00-07:00", end: "2026-03-24T18:00:00-07:00", title: "Focus Block" },
+    { start: "2026-03-25T08:30:00-07:00", end: "2026-03-25T09:30:00-07:00", title: "Morning Run" },
     { start: "2026-03-26T09:30:00-07:00", end: "2026-03-26T10:30:00-07:00", title: "Planning" },
+    { start: "2026-03-27T18:00:00-07:00", end: "2026-03-27T20:00:00-07:00", title: "Dinner Out" },
+    { start: "2026-03-28T13:00:00-07:00", end: "2026-03-28T14:00:00-07:00", title: "Salon" },
     { start: "2026-03-29T17:00:00-07:00", end: "2026-03-29T19:00:00-07:00", title: "Family Time" }
   ],
 
-  user_sarah: [
+  sarah: [
     { start: "2026-03-15T18:00:00-07:00", end: "2026-03-15T20:00:00-07:00", title: "Movie Night" },
     { start: "2026-03-16T10:00:00-07:00", end: "2026-03-16T12:00:00-07:00", title: "Strategy Session" },
+    { start: "2026-03-17T08:30:00-07:00", end: "2026-03-17T09:30:00-07:00", title: "School Dropoff" },
+    { start: "2026-03-18T17:00:00-07:00", end: "2026-03-18T18:30:00-07:00", title: "Pilates" },
     { start: "2026-03-19T09:00:00-07:00", end: "2026-03-19T10:00:00-07:00", title: "Team Standup" },
     { start: "2026-03-20T18:30:00-07:00", end: "2026-03-20T21:00:00-07:00", title: "Dinner Out" },
+    { start: "2026-03-21T10:00:00-07:00", end: "2026-03-21T11:00:00-07:00", title: "Haircut" },
+    { start: "2026-03-22T14:00:00-07:00", end: "2026-03-22T16:00:00-07:00", title: "Family Visit" },
     { start: "2026-03-23T14:00:00-07:00", end: "2026-03-23T15:00:00-07:00", title: "Mentorship Call" },
     { start: "2026-03-24T11:00:00-07:00", end: "2026-03-24T12:30:00-07:00", title: "Review Meeting" },
+    { start: "2026-03-25T08:00:00-07:00", end: "2026-03-25T09:00:00-07:00", title: "PT Appointment" },
+    { start: "2026-03-26T19:00:00-07:00", end: "2026-03-26T20:30:00-07:00", title: "Dinner with Cousin" },
     { start: "2026-03-27T09:00:00-07:00", end: "2026-03-27T11:00:00-07:00", title: "Offsite Prep" },
-    { start: "2026-03-28T16:00:00-07:00", end: "2026-03-28T18:00:00-07:00", title: "Birthday Party" }
+    { start: "2026-03-28T16:00:00-07:00", end: "2026-03-28T18:00:00-07:00", title: "Birthday Party" },
+    { start: "2026-03-29T09:30:00-07:00", end: "2026-03-29T11:00:00-07:00", title: "Brunch" }
   ],
 
-  user_tommy: [
+  tommy: [
+    { start: "2026-03-15T14:00:00-07:00", end: "2026-03-15T16:00:00-07:00", title: "Tennis Clinic" },
     { start: "2026-03-16T08:30:00-07:00", end: "2026-03-16T10:00:00-07:00", title: "Morning Meeting" },
+    { start: "2026-03-16T18:30:00-07:00", end: "2026-03-16T20:00:00-07:00", title: "Gym" },
     { start: "2026-03-17T15:00:00-07:00", end: "2026-03-17T16:00:00-07:00", title: "Project Check-in" },
     { start: "2026-03-18T18:00:00-07:00", end: "2026-03-18T20:00:00-07:00", title: "Tennis" },
+    { start: "2026-03-19T12:30:00-07:00", end: "2026-03-19T13:30:00-07:00", title: "Lunch Meeting" },
+    { start: "2026-03-20T09:00:00-07:00", end: "2026-03-20T10:30:00-07:00", title: "Design Review" },
     { start: "2026-03-21T09:00:00-07:00", end: "2026-03-21T11:00:00-07:00", title: "Errands" },
+    { start: "2026-03-22T17:00:00-07:00", end: "2026-03-22T18:30:00-07:00", title: "Dinner with Family" },
     { start: "2026-03-23T13:00:00-07:00", end: "2026-03-23T14:30:00-07:00", title: "Design Sync" },
+    { start: "2026-03-24T08:00:00-07:00", end: "2026-03-24T09:00:00-07:00", title: "Coffee Chat" },
     { start: "2026-03-25T10:00:00-07:00", end: "2026-03-25T12:00:00-07:00", title: "Work Block" },
+    { start: "2026-03-26T18:00:00-07:00", end: "2026-03-26T19:30:00-07:00", title: "Tennis Lesson" },
     { start: "2026-03-27T17:30:00-07:00", end: "2026-03-27T19:00:00-07:00", title: "Dinner" },
+    { start: "2026-03-28T15:00:00-07:00", end: "2026-03-28T17:00:00-07:00", title: "Workout + Grocery Run" },
     { start: "2026-03-29T10:00:00-07:00", end: "2026-03-29T12:00:00-07:00", title: "Brunch" }
   ],
 
-  user_janet: [
+  janet: [
     { start: "2026-03-15T09:00:00-07:00", end: "2026-03-15T10:30:00-07:00", title: "Workout" },
+    { start: "2026-03-16T11:00:00-07:00", end: "2026-03-16T12:00:00-07:00", title: "Grocery Run" },
     { start: "2026-03-17T11:00:00-07:00", end: "2026-03-17T12:00:00-07:00", title: "1:1 Meeting" },
     { start: "2026-03-18T14:00:00-07:00", end: "2026-03-18T16:00:00-07:00", title: "UI Review" },
     { start: "2026-03-19T18:30:00-07:00", end: "2026-03-19T20:00:00-07:00", title: "Dinner" },
+    { start: "2026-03-20T08:30:00-07:00", end: "2026-03-20T09:30:00-07:00", title: "Doctor Follow-up" },
+    { start: "2026-03-21T13:00:00-07:00", end: "2026-03-21T15:00:00-07:00", title: "Shopping" },
     { start: "2026-03-22T13:00:00-07:00", end: "2026-03-22T15:00:00-07:00", title: "Family Visit" },
+    { start: "2026-03-23T09:00:00-07:00", end: "2026-03-23T10:00:00-07:00", title: "Standup" },
     { start: "2026-03-24T09:00:00-07:00", end: "2026-03-24T10:00:00-07:00", title: "Sprint Planning" },
+    { start: "2026-03-25T17:00:00-07:00", end: "2026-03-25T18:30:00-07:00", title: "Yoga" },
     { start: "2026-03-26T16:00:00-07:00", end: "2026-03-26T18:00:00-07:00", title: "Doctor Appointment" },
-    { start: "2026-03-28T11:00:00-07:00", end: "2026-03-28T13:00:00-07:00", title: "Lunch" }
+    { start: "2026-03-27T12:00:00-07:00", end: "2026-03-27T13:00:00-07:00", title: "Lunch with Friend" },
+    { start: "2026-03-28T11:00:00-07:00", end: "2026-03-28T13:00:00-07:00", title: "Lunch" },
+    { start: "2026-03-29T18:00:00-07:00", end: "2026-03-29T19:30:00-07:00", title: "Dinner with Parents" }
   ]
 } as const;
+
+export const MOCK_CONNECTIONS = Object.keys(MOCK_CALENDAR_EVENTS).map((id, index) => ({
+  id: `conn-${index}`,
+  userId: id,
+  name: id.charAt(0).toUpperCase() + id.slice(1),
+  email: `${id}@gmail.com`,
+  status: "accepted" as const,
+}));

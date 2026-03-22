@@ -1,15 +1,11 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
-import { CalendarCell } from "@/components/ui/CalendarCell";
-import { TimeChip } from "@/components/ui/TimeChip";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
-import { ChatMessage } from "@/components/chat/ChatMessage";
-import { ActionBubble } from "@/components/chat/ActionBubble";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { ChatContent } from "@/components/chat/ChatContent";
 import { MyCalendarEvents, type CalendarView } from "@/components/calendar/MyCalendarEvents";
@@ -17,15 +13,15 @@ import { useTheme } from "@/lib/theme";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import {
-  CHAT_SUGGESTIONS,
-  MEETING_GROUPS,
-  SAMPLE_CHAT_MESSAGES,
-  SAMPLE_TIME_SLOTS,
-  SAMPLE_INVITE,
-  WEEK_DAYS,
-  MARCH_DATES,
-} from "@/lib/mock-data";
+import { CHAT_SUGGESTIONS } from "@/lib/mock-data";
+
+interface MeetingEvent {
+  id: string;
+  title: string;
+  participantIds: string[];
+  status: string;
+  createdAt: string;
+}
 
 const ROUTES = [
   { href: "/onboarding", label: "1. Sign Up" },
@@ -49,10 +45,10 @@ export default function Home() {
   const isLoading = status === "submitted" || status === "streaming";
   const chatStarted = messages.length > 0;
 
-  const [selectedDay, setSelectedDay] = useState(21);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [showInvitePreview, setShowInvitePreview] = useState(false);
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
+  const [meetingEvents, setMeetingEvents] = useState<MeetingEvent[]>([]);
   const [screensMenuOpen, setScreensMenuOpen] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [calendarView, setCalendarView] = useState<CalendarView>("week");
@@ -83,9 +79,13 @@ export default function Home() {
     document.addEventListener("mouseup", handleMouseUp);
   }, []);
 
-  const visibleDates = MARCH_DATES.filter(
-    (d) => d.day >= 16 && d.day <= 22,
-  );
+  useEffect(() => {
+    if (!user) return;
+    fetch("/api/events?limit=20")
+      .then((res) => res.ok ? res.json() : { events: [] })
+      .then((data) => setMeetingEvents(data.events || []))
+      .catch(() => {});
+  }, [user]);
 
   function handleSendMessage(text: string) {
     sendMessage({ parts: [{ type: "text", text }] });
@@ -218,31 +218,33 @@ export default function Home() {
             <span className="truncate text-[15px] font-semibold tracking-[-0.24px] text-[var(--text-primary)]">
             Chat2meet
           </span>
-            {MEETING_GROUPS.map((g) => (
-              <button
-                key={g.id}
-                type="button"
-                onClick={() => {
-                  setActiveGroup(g.id);
-                }}
-                className={cn(
-                  "flex w-full items-start gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors cursor-pointer",
-                  activeGroup === g.id
-                    ? "bg-[var(--bubble-action)] border border-[var(--bubble-action-border)] text-[var(--text-primary)]"
-                    : "text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]",
-                )}
-              >
-                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--bg-tertiary)] text-xs font-semibold text-[var(--text-secondary)]">
-                  {g.name.charAt(0)}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{g.name}</p>
-                  <p className="truncate text-xs text-[var(--text-tertiary)]">
-                    {g.members.join(", ")}
-                  </p>
-                </div>
-              </button>
-            ))}
+            {meetingEvents.length === 0 ? (
+              <p className="px-3 py-2 text-xs text-[var(--text-tertiary)]">No meetings yet</p>
+            ) : (
+              meetingEvents.map((ev) => (
+                <button
+                  key={ev.id}
+                  type="button"
+                  onClick={() => setActiveGroup(ev.id)}
+                  className={cn(
+                    "flex w-full items-start gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors cursor-pointer",
+                    activeGroup === ev.id
+                      ? "bg-[var(--bubble-action)] border border-[var(--bubble-action-border)] text-[var(--text-primary)]"
+                      : "text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]",
+                  )}
+                >
+                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--bg-tertiary)] text-xs font-semibold text-[var(--text-secondary)]">
+                    {ev.title.charAt(0)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{ev.title}</p>
+                    <p className="truncate text-xs text-[var(--text-tertiary)]">
+                      {ev.participantIds?.join(", ") || ev.status}
+                    </p>
+                  </div>
+                </button>
+              ))
+            )}
           </div>
 
           {/* User */}
@@ -415,29 +417,31 @@ export default function Home() {
               </Button>
           </div>
           <div className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 pt-3 pb-4">
-            {MEETING_GROUPS.map((g) => (
-              <button
-                key={g.id}
-                type="button"
-                onClick={() => {
-                  setActiveGroup(g.id);
-                }}
-                className={cn(
-                  "flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors cursor-pointer",
-                  activeGroup === g.id
-                    ? "bg-[var(--bubble-action)] border border-[var(--bubble-action-border)] text-[var(--text-primary)]"
-                    : "text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]",
-                )}
-              >
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--bg-tertiary)] text-xs font-semibold text-[var(--text-secondary)]">
-                  {g.name.charAt(0)}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{g.name}</p>
-                  <p className="truncate text-xs text-[var(--text-tertiary)]">{g.members.slice(0, 2).join(", ")}</p>
-                </div>
-              </button>
-            ))}
+            {meetingEvents.length === 0 ? (
+              <p className="px-3 py-2 text-xs text-[var(--text-tertiary)]">No meetings yet</p>
+            ) : (
+              meetingEvents.map((ev) => (
+                <button
+                  key={ev.id}
+                  type="button"
+                  onClick={() => setActiveGroup(ev.id)}
+                  className={cn(
+                    "flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors cursor-pointer",
+                    activeGroup === ev.id
+                      ? "bg-[var(--bubble-action)] border border-[var(--bubble-action-border)] text-[var(--text-primary)]"
+                      : "text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]",
+                  )}
+                >
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--bg-tertiary)] text-xs font-semibold text-[var(--text-secondary)]">
+                    {ev.title.charAt(0)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{ev.title}</p>
+                    <p className="truncate text-xs text-[var(--text-tertiary)]">{ev.participantIds?.slice(0, 2).join(", ") || ev.status}</p>
+                  </div>
+                </button>
+              ))
+            )}
           </div>
           <div className="border-t border-[var(--divider)] p-3">
             <div className="flex items-center justify-between px-2 py-1">
@@ -565,32 +569,31 @@ export default function Home() {
               </div>
 
               {/* Meeting groups list */}
-              <div className="px-4 pt-4">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
-                  Groups
-                </p>
-                <div className="flex flex-col gap-1">
-                  {MEETING_GROUPS.map((g) => (
-                    <button
-                      key={g.id}
-                      type="button"
-                      onClick={() => {
-                        setActiveGroup(g.id);
-                      }}
-                      className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-secondary)] cursor-pointer"
-                    >
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--bg-secondary)] text-sm font-semibold text-[var(--text-secondary)]">
-                        {g.name.charAt(0)}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-[var(--text-primary)]">{g.name}</p>
-                        <p className="text-xs text-[var(--text-tertiary)]">{g.members.join(", ")}</p>
-                      </div>
-                      <span className="text-[11px] text-[var(--text-tertiary)]">{g.lastActive}</span>
-                    </button>
-                  ))}
+              {meetingEvents.length > 0 && (
+                <div className="px-4 pt-4">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
+                    Meetings
+                  </p>
+                  <div className="flex flex-col gap-1">
+                    {meetingEvents.map((ev) => (
+                      <button
+                        key={ev.id}
+                        type="button"
+                        onClick={() => setActiveGroup(ev.id)}
+                        className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-secondary)] cursor-pointer"
+                      >
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--bg-secondary)] text-sm font-semibold text-[var(--text-secondary)]">
+                          {ev.title.charAt(0)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-[var(--text-primary)]">{ev.title}</p>
+                          <p className="text-xs text-[var(--text-tertiary)]">{ev.participantIds?.join(", ") || ev.status}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </>
           ) : (
             <ChatContent

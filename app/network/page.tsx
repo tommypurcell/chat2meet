@@ -85,7 +85,6 @@ export default function NetworkPage() {
         body: JSON.stringify({ emails }),
       });
       if (res.ok) {
-        // Re-fetch friends list to get accurate data
         const friendsRes = await fetch("/api/friends");
         if (friendsRes.ok) {
           const data = await friendsRes.json();
@@ -135,7 +134,6 @@ export default function NetworkPage() {
             <EmptyState onAddClick={() => setModalOpen(true)} />
           ) : (
             <div className="flex flex-col gap-6">
-              {/* Friends section */}
               {acceptedFriends.length > 0 && (
                 <Card>
                   <CardHeader>
@@ -163,7 +161,6 @@ export default function NetworkPage() {
                 </Card>
               )}
 
-              {/* Pending section */}
               {pendingFriends.length > 0 && (
                 <Card>
                   <CardHeader>
@@ -204,7 +201,6 @@ export default function NetworkPage() {
         </div>
       </div>
 
-      {/* Modal */}
       <AddFriendsModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}

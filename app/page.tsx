@@ -473,7 +473,15 @@ export default function Home() {
 
           {/* New group button */}
           <div className="px-3 pt-3">
-            <Button variant="secondary" size="md" className="w-full justify-start gap-2">
+            <Button
+              variant="secondary"
+              size="md"
+              className="w-full justify-start gap-2 cursor-pointer"
+              onClick={() => {
+                handleClearChat();
+                if (user?.uid) setNetworkPickerOpen(true);
+              }}
+            >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </svg>
@@ -729,6 +737,23 @@ export default function Home() {
                   </svg>
                 )}
               </Button>
+          </div>
+          {/* New group button */}
+          <div className="px-3 pt-3">
+            <Button
+              variant="secondary"
+              size="md"
+              className="w-full justify-start gap-2 cursor-pointer"
+              onClick={() => {
+                handleClearChat();
+                if (user?.uid) setNetworkPickerOpen(true);
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              New meeting
+            </Button>
           </div>
           <div className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 pt-3 pb-4">
             {MEETING_GROUPS.map((g) => (

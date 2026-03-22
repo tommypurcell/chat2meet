@@ -1,57 +1,38 @@
 # Architecture
 
-## Request flow
+## Request Flow
 
-1. Browser loads App Router pages from `app/`.
-2. The home page is a client component: sidebar, `ChatWindow`, `ChatInput`. Data shown there is still mostly **mock** (`lib/mock-data.ts`); wiring to `/api/*` is the next step.
-3. Route handlers in `app/api/**/route.ts` call **`getDb()`** from `lib/firebase-admin.ts` to read/write Firestore.
+1. Browser loads App Router pages from `app/` (Left nav, Center Chat, Right Calendar).
+2. The user chats via `components/chat/ChatContent.tsx`. 
+3. The prompt is sent to `app/api/chat/route.ts` which uses the **Vercel AI SDK** and **Gemini 2.0**.
+4. The Agent evaluates the request, decides to trigger server-side tools (e.g. `checkAvailability`).
+5. Tool execution hits `lib/server/calendar-availability-core.ts` which merges the user's Ghost Grid constraints from Firestore with their live Google Calendar data (filtered precisely by their `selectedCalendarId`).
+6. The Agent synthesizes the merged availability and streams a conversational proposal back.
+
+## AI & Agentic Core (`app/api/chat`)
+
+- Uses `streamText` and `generateText` from the Vercel AI SDK.
+- Configured with strict `system` prompts to enforce the Chat2meet mission (avoiding manual grid negotiation).
+- **Tool Calling:** Tools are defined for checking networks, fetching Google Calendar data, and booking events directly. 
+
+## Calendar Integration (`lib/calendar-server.ts`)
+
+- Stores encrypted OAuth2 `access_token` and `refresh_token` in Firestore (`users/{uid}/calendarAccounts`).
+- Includes a sophisticated **Calendar Selection** process in `app/settings/page.tsx` allowing the endpoint to bypass the raw `"primary"` calendar and fetch events from specific `selectedCalendarId` lists dynamically.
 
 ## Firebase Admin
 
 ### `lib/firebase-credential.ts`
-
-Single place for **how** the server authenticates to Firebase:
-
-1. File path from `GOOGLE_APPLICATION_CREDENTIALS`, `FIREBASE_SERVICE_ACCOUNT_FILE`, or `FIREBASE_SERVICE_ACCOUNT_PATH` (if the file exists)
-2. Else `FIREBASE_SERVICE_ACCOUNT` as single-line JSON, path string, or base64 JSON
-3. Else **Application Default Credentials** (`gcloud auth application-default login`)
-
-Next.js loads `.env` / `.env.local` for API routes. The seed script uses `scripts/load-env.ts` first so the same vars apply before `getDb()` runs.
+Single place for **how** the server authenticates to Firebase.
 
 ### `lib/firebase-admin.ts`
-
 - **`getDb()`** — Firestore (initializes the default app with `getAdminCredential()`)
-- **`getAuth()`** — Admin Auth (future: verify ID tokens)
-- **`getServerTimestamp()`** — `FieldValue.serverTimestamp()` for writes
+- **`getAuth()`** — Admin Auth handles session validation.
 
-### `scripts/seed-firestore.ts` & `scripts/load-env.ts`
+## Availability Core (`lib/server/calendar-availability-core.ts`)
 
-- `load-env` applies dotenv before importing `getDb`, so credentials match the API.
-- Seed writes the MVP dummy documents (same IDs on each run).
-
-## `lib/types.ts`
-
-- **Firestore-aligned:** `UserDoc`, `NetworkConnectionDoc`, `EventDoc`, `EventParticipantDoc`, `EventAvailabilityDoc`, plus helpers (`SlotCandidate`, `TimeRange`, …).
-- **UI-only:** `SchedulingEvent`, `ChatSuggestion`, `EventItem`, `MessageRole`.
-
-## `lib/mock-data.ts`
-
-Static copy for the chat UI and sidebar until the UI reads from the API.
-
-## `lib/api-helpers.ts`
-
-Shared helpers for some route handlers: `collection()` (Firestore collection ref), `timestamps()` / `updateTimestamp()`, `errorResponse` / `successResponse`, `getDocOrError`, `extractFields`. Other handlers call `getDb()` from `firebase-admin.ts` directly — both patterns coexist.
-
-## Firestore query notes
-
-- **`GET /api/events`** can combine `userId`, `createdBy`, and `status` with `orderBy("createdAt")`. That may require a **composite index** (Firebase shows a link in the error).
-- **`GET /api/network`** requires `userId` (connections where that user is `ownerUserId`).
-
-## Build note
-
-If you see a Turbopack warning about `lib/firebase-credential.ts` and “unexpected file in NFT list”, it comes from `existsSync` / `process.cwd()` when resolving credential paths. `next.config.ts` sets `serverExternalPackages: ["firebase-admin"]` to keep the Admin SDK out of the bundle; the warning is often benign for this setup.
-
-## Security (future)
-
-- Route handlers are **unauthenticated**. Add Firebase ID token (or session) checks before production use.
-- Tighten [Firestore security rules](https://firebase.google.com/docs/firestore/security/get-started) if clients ever talk to Firestore directly.
+The algorithm driving Chat2meet:
+1. Fetches user's `ghostGrid` preferences.
+2. Fetches the exact Google Calendar events for the timeframe using `selectedCalendarId`.
+3. Checks intersections of multi-user network schedules.
+4. Returns the boolean availability maps (`SlotCandidate` / `TimeRange`) for the AI to parse.

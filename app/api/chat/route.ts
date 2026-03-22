@@ -47,8 +47,8 @@ export async function POST(req: Request) {
   }
 
   const result = streamText({
-    // Use stable model names: gemini-2.0-flash-lite-preview-02-05 or gemini-1.5-flash
-    model: google(process.env.GEMINI_MODEL || "gemini-2.0-flash-lite-preview-02-05"),
+    // Use stable model names: gemini-1.5-flash
+    model: google(process.env.GEMINI_MODEL || "gemini-1.5-flash"),
     system: `You are Chat2meet Agent, a smart scheduling assistant.
 Help users find times to meet with their friends and colleagues.
 

@@ -1,36 +1,32 @@
-# UI components
+# UI Components
 
 Paths under `components/` (PascalCase files).
 
-## `components/ui/`
-
-Shared primitives: **`Button`** (variants: default, outline, ghost, accent; sizes including `icon`), **`Card`** plus `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`. Styled with CSS variables from `app/globals.css` (`--chat-*`).
-
-## `components/chat/`
+## `components/calendar/` (The Core "Precious Works")
 
 | File | Role |
 | --- | --- |
-| `ChatWindow.tsx` | Main scroll area: welcome copy, suggestion cards, “Active events” grid |
-| `ChatInput.tsx` | Composer; Enter sends, Shift+Enter newline |
-| `ChatMessage.tsx` | Layout helper for future user/assistant bubbles |
+| `AvailabilityGrid.tsx` | The "Ghost Grid": A highly interactive 7-day drag-to-select mesh mapping soft working constraints. |
+| `MyCalendarEvents.tsx` | The Right Column proof: Visualizes actual Google Calendar events using a similar 7-day grid rendering. |
+| `GoogleCalendarConnect.tsx` | OAuth initiation button to connect to Google APIs. |
+| `GoogleCalendarDisconnect.tsx` | Handles token revocation and cleanup. |
 
-## `components/sidebar/`
-
-| File | Role |
-| --- | --- |
-| `Sidebar.tsx` | Left rail: branding, drawer on small screens, overlay |
-| `NewEventButton.tsx` | Primary CTA (outline `Button`) |
-| `EventList.tsx` | Renders `EventItem[]` from props (mock data today) |
-
-## `components/events/`
+## `components/chat/` (The Intelligence)
 
 | File | Role |
 | --- | --- |
-| `EventCard.tsx` | Scheduling-style card; opens `AddFriendsModal` |
-| `AddFriendsModal.tsx` | Email paste modal (invite flow not wired to API yet) |
+| `ChatContent.tsx` | The conversational UI wrapper natively bound to the Vercel AI SDK (`useChat`). |
+| `ChatWindow.tsx` | Scroll area holding welcome text, agent streams, and final proposals. |
 
-## Page wiring
+## `components/ui/` (Glassmorphism Primitives)
 
-`app/page.tsx` composes `Sidebar`, `ChatWindow`, and `ChatInput` and holds mobile sidebar open state.
+Shared primitives: **`Button`** (variants: default, outline, ghost, accent; sizes including `icon`), **`Card`** plus `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`. Styled with Glassmorphism CSS variables from `app/globals.css` (`--chat-*`), heavy reliance on `backdrop-blur` and gradients.
 
-`app/layout.tsx` sets metadata, loads **Inter** via `next/font`, and applies global styles from `app/globals.css`.
+## `components/sidebar/` & `components/events/`
+- Sidebars handle network grouping and active event tickets.
+- `EventCard.tsx` manages confirmed bookings.
+
+## Page Wiring (`app/`)
+- `app/page.tsx`: Handles the 3-column "Cockpit" layout.
+- `app/settings/page.tsx`: Houses the **Calendar Selection Logic** (where users can pick exactly which Google Calendar governs their availability).
+- `app/layout.tsx`: Injects `Inter` font, Global CSS, and NextAuth/Firebase context.

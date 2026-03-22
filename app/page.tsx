@@ -236,6 +236,10 @@ export default function Home() {
         const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
         const rangeLabel = `${calendarDateInTimeZone(today, tz)} → ${calendarDateInTimeZone(nextWeek, tz)}`;
 
+        console.log("=== [BROWSER] Fetching calendar data ===");
+        console.log("User ID:", uid);
+        console.log("Time range:", today.toISOString(), "to", nextWeek.toISOString());
+
         const response = await fetch(
           `/api/calendar/google/events?userId=${uid}&timeMin=${today.toISOString()}&timeMax=${nextWeek.toISOString()}&maxResults=100`,
         );
@@ -249,6 +253,11 @@ export default function Home() {
           }>;
           error?: string;
         };
+
+        console.log("=== [BROWSER] Calendar API response ===");
+        console.log("Success:", data.success);
+        console.log("Events:", data.events);
+        console.log("Error:", data.error);
 
         if (!response.ok || data.error) {
           const msg = data.error || response.statusText;
@@ -502,7 +511,7 @@ export default function Home() {
                   </>
                 )}
               </div>
-              <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">When2Meet</h2>
+              <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Chat2Meet</h2>
             </div>
             <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
                 {theme === "dark" ? (

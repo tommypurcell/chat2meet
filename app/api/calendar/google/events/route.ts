@@ -21,6 +21,9 @@ export async function GET(request: NextRequest) {
     const timeMax = searchParams.get("timeMax");
     const maxResults = parseInt(searchParams.get("maxResults") || "100");
 
+    console.log("=== CALENDAR API: GET /api/calendar/google/events ===");
+    console.log("Request params:", { userId, timeMin, timeMax, maxResults });
+
     if (!userId) {
       return NextResponse.json(
         { error: "userId query parameter is required" },
@@ -110,22 +113,28 @@ export async function GET(request: NextRequest) {
       requestParams.timeMax = timeMax;
     }
 
+    console.log("Fetching from Google Calendar with params:", requestParams);
     const response = await calendar.events.list(requestParams);
 
     const events = response.data.items || [];
+    console.log(`Fetched ${events.length} events from Google Calendar`);
+
+    const formattedEvents = events.map((event) => ({
+      id: event.id,
+      summary: event.summary || "No title",
+      description: event.description || null,
+      start: event.start?.dateTime || event.start?.date,
+      end: event.end?.dateTime || event.end?.date,
+      location: event.location || null,
+      attendees: event.attendees?.map((a) => a.email) || [],
+      htmlLink: event.htmlLink,
+    }));
+
+    console.log("Formatted events:", JSON.stringify(formattedEvents, null, 2));
 
     return NextResponse.json({
       success: true,
-      events: events.map((event) => ({
-        id: event.id,
-        summary: event.summary || "No title",
-        description: event.description || null,
-        start: event.start?.dateTime || event.start?.date,
-        end: event.end?.dateTime || event.end?.date,
-        location: event.location || null,
-        attendees: event.attendees?.map((a) => a.email) || [],
-        htmlLink: event.htmlLink,
-      })),
+      events: formattedEvents,
       email: accountData.email,
       totalEvents: events.length,
     });

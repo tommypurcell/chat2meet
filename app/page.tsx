@@ -113,9 +113,6 @@ function ChatContent({
   onCloseInvite: () => void;
   onSuggestionClick?: (text: string) => void;
 }) {
-  const suggestedTimes = extractSuggestedTimesFromMessages(messages);
-  const createdEvents = extractCreateEventResultsFromMessages(messages);
-
   return (
     <div>
       {messages.length === 0 && !isLoading ? (
@@ -158,92 +155,6 @@ function ChatContent({
           )}
         </>
       )}
-
-      {suggestedTimes.length > 0 && (
-        <div className="flex flex-wrap gap-2 px-4 py-2">
-          {suggestedTimes.map((slot: any) => (
-            <TimeChip
-              key={slot.id}
-              time={slot.time}
-              date={slot.date}
-              selected={selectedSlot === slot.id}
-              onClick={() => onSelectSlot(slot.id)}
-            />
-          ))}
-        </div>
-      )}
-
-      {selectedSlot && !showInvitePreview && (
-        <ActionBubble
-          text="Create calendar invite"
-          onClick={onShowInvite}
-        />
-      )}
-
-      {showInvitePreview && (
-        <InvitePreview onClose={onCloseInvite} />
-      )}
-
-      {createdEvents.map((evt: any) => (
-        <div
-          key={evt.eventId}
-          className="mx-4 mb-2 rounded-2xl border border-green-500/30 bg-green-500/10 p-4"
-        >
-          <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <span className="text-sm font-semibold">Event created</span>
-          </div>
-          <p className="mt-1.5 text-sm font-medium text-[var(--text-primary)]">
-            {evt.summary}
-          </p>
-          <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-            {new Date(evt.start).toLocaleString(undefined, {
-              weekday: "short",
-              month: "short",
-              day: "numeric",
-              hour: "numeric",
-              minute: "2-digit",
-            })}
-            {" – "}
-            {new Date(evt.end).toLocaleString(undefined, {
-              hour: "numeric",
-              minute: "2-digit",
-            })}
-          </p>
-          {evt.attendees?.length > 0 && (
-            <p className="mt-1 text-xs text-[var(--text-tertiary)]">
-              With: {evt.attendees.join(", ")}
-            </p>
-          )}
-          {evt.htmlLink && (
-            <a
-              href={evt.htmlLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent-primary)] px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                <path
-                  d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              Open in Google Calendar
-            </a>
-          )}
-        </div>
-      ))}
     </div>
   );
 }
@@ -288,6 +199,42 @@ export default function Home() {
   const [calendarPromptForChat, setCalendarPromptForChat] = useState("");
   const calendarPromptForChatRef = useRef("");
   calendarPromptForChatRef.current = calendarPromptForChat;
+
+  /** Saved events for side menu */
+  const [savedEvents, setSavedEvents] = useState<Array<{
+    id: string;
+    title: string;
+    status: string;
+    createdAt: any;
+    finalizedSlot?: { start: string; end: string };
+  }>>([]);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Fetch saved events
+  useEffect(() => {
+    if (!user?.uid) {
+      setSavedEvents([]);
+      return;
+    }
+
+    const fetchEvents = async () => {
+      try {
+        const response = await fetch(`/api/events?userId=${user.uid}&limit=10`);
+        if (response.ok) {
+          const data = await response.json();
+          setSavedEvents(data.events || []);
+        }
+      } catch (error) {
+        console.error("Error fetching events:", error);
+      }
+    };
+
+    fetchEvents();
+  }, [user?.uid]);
 
   // Google events for chat + persist snapshot to Firestore `calendars/{uid}`.
   // Uses [user] (not []) so this runs after auth resolves; [] would fire before `user` exists.
@@ -615,36 +562,40 @@ export default function Home() {
             </Button>
           </div>
 
-          {/* Group list */}
+          {/* Saved Events */}
           <div className="mt-3 flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 pb-4">
-            <p className="px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.8px] text-[var(--text-tertiary)]">
-              Groups
-            </p>
-            {MEETING_GROUPS.map((g) => (
-              <button
-                key={g.id}
-                type="button"
-                onClick={() => {
-                  setActiveGroup(g.id);
-                }}
-                className={cn(
-                  "flex w-full items-start gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors cursor-pointer",
-                  activeGroup === g.id
-                    ? "bg-[var(--bubble-action)] border border-[var(--bubble-action-border)] text-[var(--text-primary)]"
-                    : "text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]",
-                )}
-              >
-                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--bg-tertiary)] text-xs font-semibold text-[var(--text-secondary)]">
-                  {g.name.charAt(0)}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{g.name}</p>
-                  <p className="truncate text-xs text-[var(--text-tertiary)]">
-                    {g.members.join(", ")}
-                  </p>
-                </div>
-              </button>
-            ))}
+            {isMounted && savedEvents.length > 0 && (
+              <>
+                <p className="px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.8px] text-[var(--text-secondary)]">
+                  Recent Events
+                </p>
+                {savedEvents.map((event) => {
+                  const date = event.finalizedSlot?.start
+                    ? new Date(event.finalizedSlot.start).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                    : 'TBD';
+                  const statusBadge = event.status === 'confirmed' ? '✓' : event.status === 'draft' ? '○' : '·';
+
+                  return (
+                    <Link
+                      key={event.id}
+                      href={`/events/${event.id}`}
+                      className="flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+                    >
+                      <span className="text-[var(--text-tertiary)]">{statusBadge}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="truncate font-medium">{event.title}</p>
+                        <p className="text-[11px] text-[var(--text-tertiary)]">{date}</p>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </>
+            )}
+            {isMounted && savedEvents.length === 0 && (
+              <p className="px-3 py-4 text-xs text-[var(--text-tertiary)]">
+                No events yet. Create one to get started!
+              </p>
+            )}
           </div>
 
           {/* User */}

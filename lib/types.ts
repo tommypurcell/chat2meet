@@ -44,6 +44,13 @@ export type NetworkConnectionDoc = {
   updatedAt: FirestoreTimestamp;
 };
 
+/** Selected connections for scheduling; persisted in sessionStorage and sent with chat requests */
+export type SchedulingParticipant = {
+  memberUserId: string;
+  memberName: string;
+  memberEmail: string;
+};
+
 export type SlotCandidate = {
   start: ISODateTime;
   end: ISODateTime;

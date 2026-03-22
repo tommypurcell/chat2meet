@@ -324,7 +324,6 @@ export default function Home() {
         console.log("User ID:", uid);
         console.log("Time range:", today.toISOString(), "to", nextWeek.toISOString());
 
-        const tz = user?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
         const response = await fetch(
           `/api/calendar/google/events?userId=${uid}&timeMin=${today.toISOString()}&timeMax=${nextWeek.toISOString()}&maxResults=100&timeZone=${encodeURIComponent(tz)}`,
         );

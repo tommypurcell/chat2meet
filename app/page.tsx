@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { CalendarCell } from "@/components/ui/CalendarCell";
@@ -14,6 +14,7 @@ import { ActionBubble } from "@/components/chat/ActionBubble";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { AvailabilityGrid } from "@/components/calendar/AvailabilityGrid";
 import { SchedulingParticipantsBar } from "@/components/chat/SchedulingParticipantsBar";
+import { NetworkPickerModal } from "@/components/network/NetworkPickerModal";
 import { useTheme } from "@/lib/theme";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -188,8 +189,6 @@ export default function Home() {
   const { theme, toggle } = useTheme();
   const { user } = useAuth(); // Get logged-in user
   const pathname = usePathname();
-  const router = useRouter();
-
   const [schedulingParticipants, setSchedulingParticipants] = useState<
     SchedulingParticipant[]
   >([]);
@@ -332,12 +331,18 @@ export default function Home() {
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const [screensMenuOpen, setScreensMenuOpen] = useState(false);
   const [showCalendarView, setShowCalendarView] = useState(true);
+  const [networkPickerOpen, setNetworkPickerOpen] = useState(false);
 
   const visibleDates = MARCH_DATES.filter(
     (d) => d.day >= 16 && d.day <= 22,
   );
 
   function handleSendMessage(text: string) {
+    const trimmed = text.trim();
+    if (trimmed.toLowerCase() === "/network") {
+      if (user?.uid) setNetworkPickerOpen(true);
+      return;
+    }
     sendMessage({ parts: [{ type: "text", text }] });
   }
 
@@ -349,10 +354,6 @@ export default function Home() {
     setMessages([]);
     setSelectedSlot(null);
     setShowInvitePreview(false);
-  }
-
-  function handleAddNetwork() {
-    router.push("/addnetwork");
   }
 
   function handleRemoveParticipant(memberUserId: string) {
@@ -536,15 +537,6 @@ export default function Home() {
                   </svg>
                 </Button>
               </Link>
-              <Link href="/addnetwork">
-                <Button variant="ghost" size="lg" title="Add people from network" className="p-2">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <circle cx="9" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.5" />
-                    <circle cx="17" cy="9" r="2" stroke="currentColor" strokeWidth="1.5" />
-                    <path d="M3 19c0-2.5 2-4.5 6-4.5s6 2 6 4.5M17 13v6M14 16h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  </svg>
-                </Button>
-              </Link>
               <Link href="/network">
                 <Button variant="ghost" size="lg" title="Network" className="p-2">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -605,11 +597,10 @@ export default function Home() {
           <SchedulingParticipantsBar
             participants={schedulingParticipants}
             onRemove={handleRemoveParticipant}
-            onAddClick={handleAddNetwork}
           />
           <ChatInput
             onSend={handleSendMessage}
-            placeholder="Schedule a meeting..."
+            placeholder="Message… type /network to pick people"
           />
         </div>
       </div>
@@ -720,9 +711,8 @@ export default function Home() {
           <SchedulingParticipantsBar
             participants={schedulingParticipants}
             onRemove={handleRemoveParticipant}
-            onAddClick={handleAddNetwork}
           />
-          <ChatInput onSend={handleSendMessage} placeholder="Schedule a meeting..." />
+          <ChatInput onSend={handleSendMessage} placeholder="Message… type /network to pick people" />
         </div>
       </div>
 
@@ -754,14 +744,6 @@ export default function Home() {
                 />
               </svg>
             </Button>
-            <Link href="/addnetwork">
-              <Button variant="ghost" size="icon" aria-label="Add people from network">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <circle cx="9" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.5" />
-                  <path d="M3 19c0-2.5 2-4.5 6-4.5s6 2 6 4.5M17 13v6M14 16h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              </Button>
-            </Link>
             <Link href="/network">
               <Button variant="ghost" size="icon" aria-label="Network">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -862,10 +844,21 @@ export default function Home() {
         <SchedulingParticipantsBar
           participants={schedulingParticipants}
           onRemove={handleRemoveParticipant}
-          onAddClick={handleAddNetwork}
         />
-        <ChatInput onSend={handleSendMessage} placeholder="Schedule a meeting..." />
+        <ChatInput onSend={handleSendMessage} placeholder="Message… type /network to pick people" />
       </div>
+
+      {user?.uid ? (
+        <NetworkPickerModal
+          open={networkPickerOpen}
+          ownerUserId={user.uid}
+          onClose={() => setNetworkPickerOpen(false)}
+          onConfirm={(selected) => {
+            setSchedulingParticipants(selected);
+            setNetworkPickerOpen(false);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

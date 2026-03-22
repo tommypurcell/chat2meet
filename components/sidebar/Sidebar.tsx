@@ -28,7 +28,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             <PanelLeftIcon />
           </button>
           <span className="truncate text-[15px] font-semibold tracking-[-0.24px] text-[var(--text-primary)]">
-            Chat 2 Meet
+            Chat2meet
           </span>
         </div>
 

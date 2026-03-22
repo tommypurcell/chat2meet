@@ -52,6 +52,9 @@
   --glow-primary: none;
   --glow-soft: none;
 
+  /* Avatar */
+  --avatar-gradient-end: #00B86E;
+
   color-scheme: light;
 }
 
@@ -75,7 +78,7 @@ html[data-theme="dark"] {
 
   --text-primary: #FFFFFF;
   --text-secondary: #EBEBF5;
-  --text-tertiary: #9A9A9F;
+  --text-tertiary: #636366;
   --text-inverse: #000000;
   --text-link: #00FFA3;
 
@@ -99,6 +102,9 @@ html[data-theme="dark"] {
   --glow-primary: 0 0 16px rgba(0,255,163,0.35), 0 0 4px rgba(0,255,163,0.2);
   --glow-soft: 0 0 10px rgba(0,255,163,0.15);
 
+  /* Avatar */
+  --avatar-gradient-end: #00B86E;
+
   color-scheme: dark;
 }
 
@@ -106,6 +112,40 @@ html[data-theme="dark"] {
   --color-background: var(--bg-primary);
   --color-foreground: var(--text-primary);
   --font-sans: var(--font-inter);
+
+  /* Design system spacing scale */
+  --spacing-0: 0px;
+  --spacing-0_5: 2px;
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+  --spacing-10: 40px;
+  --spacing-12: 48px;
+  --spacing-16: 64px;
+
+  /* Design system border radii */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 22px;
+  --radius-full: 9999px;
+
+  /* Design system font sizes */
+  --font-size-title-1: 28px;
+  --font-size-title-2: 22px;
+  --font-size-title-3: 20px;
+  --font-size-headline: 17px;
+  --font-size-body: 17px;
+  --font-size-callout: 16px;
+  --font-size-subhead: 15px;
+  --font-size-footnote: 13px;
+  --font-size-caption-1: 12px;
+  --font-size-caption-2: 11px;
 }
 
 body {

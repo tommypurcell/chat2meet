@@ -38,11 +38,11 @@ export function GoogleCalendarConnect({
       <button
         onClick={handleConnect}
         disabled={loading}
-        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        className="px-4 py-2 bg-[var(--accent-primary)] text-[var(--bubble-sender-text)] rounded-lg hover:opacity-90 disabled:opacity-50"
       >
         {loading ? "Connecting..." : "Connect Google Calendar"}
       </button>
-      {error && <p className="text-sm text-red-600">Error: {error}</p>}
+      {error && <p className="text-sm text-[var(--accent-danger)]">Error: {error}</p>}
     </div>
   );
 }

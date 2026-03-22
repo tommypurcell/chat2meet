@@ -17,7 +17,7 @@ export function Avatar({ name, size = 36, className }: AvatarProps) {
         width: size,
         height: size,
         fontSize: size * 0.4,
-        background: "linear-gradient(135deg, var(--accent-primary), #00B86E)",
+        background: "linear-gradient(135deg, var(--accent-primary), var(--avatar-gradient-end))",
       }}
     >
       {name.charAt(0).toUpperCase()}

@@ -64,15 +64,15 @@ export function GoogleCalendarDisconnect({
       <button
         onClick={handleDisconnect}
         disabled={loading}
-        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+        className="px-4 py-2 bg-[var(--accent-danger)] text-[var(--text-inverse)] rounded-lg hover:opacity-90 disabled:opacity-50"
       >
         {loading ? "Disconnecting..." : "Disconnect Google Calendar"}
       </button>
       {error && (
-        <p className="text-sm text-red-600">Error: {error}</p>
+        <p className="text-sm text-[var(--accent-danger)]">Error: {error}</p>
       )}
       {success && (
-        <p className="text-sm text-green-600">
+        <p className="text-sm text-[var(--text-link)]">
           Calendar disconnected! Refreshing page...
         </p>
       )}

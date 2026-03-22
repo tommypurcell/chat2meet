@@ -1,0 +1,27 @@
+{
+    "permissions": {
+      "allow": [
+        "Bash(find /c/Users/qianj/OneDrive/Documents/PROJECTS/2026/when2meet-agent -not -path */node_modules/* -not -path */.next/* -not -path */.git/* -type f)",
+        "Bash(find /c/Users/qianj/OneDrive/Documents/PROJECTS/2026/when2meet-agent/node_modules/next/dist/docs -type f -name *.md)",
+        "WebFetch(domain:sdk.vercel.ai)",
+        "WebFetch(domain:ai-sdk.dev)",
+        "Bash(npm install:*)",
+        "Bash(node -e \"const ai = require\\(''ai''\\); console.log\\(Object.keys\\(ai\\).filter\\(k => k.includes\\(''convert''\\) || k.includes\\(''stream''\\) || k.includes\\(''Message''\\) || k === ''tool''\\).join\\(''\\\\n''\\)\\)\")",
+        "Bash(node -e \"const r = require\\(''@ai-sdk/react''\\); console.log\\(Object.keys\\(r\\).join\\(''\\\\n''\\)\\)\")",
+        "Bash(node -e \":*)",
+        "Bash(node -e \"const { tool } = require\\(''ai''\\); console.log\\(tool.toString\\(\\).substring\\(0, 500\\)\\)\")",
+        "Bash(npx tsc:*)",
+        "Bash(npm run:*)",
+        "Bash(node -e \"require\\(''./package.json''\\)\")",
+        "Bash(node -e \"require\\(''./package-lock.json''\\)\")",
+        "Bash(node -e \"const fs=require\\(''fs''\\); const s=fs.readFileSync\\(''package.json'',''utf8''\\); console.log\\(''char at 340:'', JSON.stringify\\(s[340]\\)\\); console.log\\(''context:'', JSON.stringify\\(s.slice\\(330,360\\)\\)\\); console.log\\(''total length:'', s.length\\)\")",
+        "Bash(cd:*)",
+        "Bash(grep -o \"--[a-z-]*:\" \"/c/Users/qianj/OneDrive/Documents/PROJECTS/2026/when2meet-agent/app/globals.css\")",
+        "Bash(ls:*)",
+        "Bash(find C:UsersqianjOneDriveDocumentsPROJECTS2026when2meet-agent -maxdepth 2 -type f -name *.ts -o -name *.tsx -o -name *.js)",
+        "Bash(find C:UsersqianjOneDriveDocumentsPROJECTS2026when2meet-agent -type f \\\\\\(-name *.ts -o -name *.tsx \\\\\\) -path */app/api/*)",
+        "Bash(grep -r .map.*key C:UsersqianjOneDriveDocumentsPROJECTS2026when2meet-agent/app --include=*.tsx)"
+      ]
+    }
+  }
+  

@@ -65,13 +65,13 @@ export function CalendarEventsList({ userId }: CalendarEventsListProps) {
 
   if (loading) {
     return (
-      <div className="p-6 bg-white rounded-lg shadow">
+      <div className="p-6 bg-[var(--bg-primary)] rounded-lg" style={{ boxShadow: 'var(--shadow-card)' }}>
         <div className="animate-pulse">
-          <div className="h-4 bg-gray-200 rounded w-1/4 mb-4"></div>
+          <div className="h-4 bg-[var(--bg-tertiary)] rounded w-1/4 mb-4"></div>
           <div className="space-y-3">
-            <div className="h-16 bg-gray-100 rounded"></div>
-            <div className="h-16 bg-gray-100 rounded"></div>
-            <div className="h-16 bg-gray-100 rounded"></div>
+            <div className="h-16 bg-[var(--bg-secondary)] rounded"></div>
+            <div className="h-16 bg-[var(--bg-secondary)] rounded"></div>
+            <div className="h-16 bg-[var(--bg-secondary)] rounded"></div>
           </div>
         </div>
       </div>
@@ -80,13 +80,13 @@ export function CalendarEventsList({ userId }: CalendarEventsListProps) {
 
   if (error) {
     return (
-      <div className="p-6 bg-white rounded-lg shadow">
-        <div className="text-red-600">
+      <div className="p-6 bg-[var(--bg-primary)] rounded-lg" style={{ boxShadow: 'var(--shadow-card)' }}>
+        <div className="text-[var(--accent-danger)]">
           <p className="font-semibold mb-2">Error loading calendar events</p>
           <p className="text-sm">{error}</p>
           <button
             onClick={fetchEvents}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            className="mt-4 px-4 py-2 bg-[var(--accent-primary)] text-[var(--bubble-sender-text)] rounded hover:opacity-90"
           >
             Retry
           </button>
@@ -96,22 +96,22 @@ export function CalendarEventsList({ userId }: CalendarEventsListProps) {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow">
-      <div className="p-6 border-b border-gray-200">
+    <div className="bg-[var(--bg-primary)] rounded-lg" style={{ boxShadow: 'var(--shadow-card)' }}>
+      <div className="p-6 border-b border-[var(--divider)]">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900">
+            <h2 className="text-xl font-semibold text-[var(--text-primary)]">
               Upcoming Events
             </h2>
             {email && (
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-[var(--text-tertiary)] mt-1">
                 Connected: {email}
               </p>
             )}
           </div>
           <button
             onClick={fetchEvents}
-            className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+            className="px-3 py-1 text-sm bg-[var(--bg-secondary)] text-[var(--text-secondary)] rounded hover:bg-[var(--bg-tertiary)]"
           >
             Refresh
           </button>
@@ -120,7 +120,7 @@ export function CalendarEventsList({ userId }: CalendarEventsListProps) {
 
       <div className="p-6">
         {events.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8 text-[var(--text-tertiary)]">
             <p className="text-lg mb-2">No upcoming events</p>
             <p className="text-sm">
               Your calendar is clear for the next few days
@@ -131,29 +131,29 @@ export function CalendarEventsList({ userId }: CalendarEventsListProps) {
             {events.map((event) => (
               <div
                 key={event.id}
-                className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors"
+                className="p-4 border border-[var(--border)] rounded-lg hover:border-[var(--border-focused)] transition-colors"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 mb-1">
+                    <h3 className="font-semibold text-[var(--text-primary)] mb-1">
                       {event.summary}
                     </h3>
-                    <p className="text-sm text-gray-600 mb-2">
+                    <p className="text-sm text-[var(--text-tertiary)] mb-2">
                       {formatDateTime(event.start)}
                     </p>
                     {event.description && (
-                      <p className="text-sm text-gray-700 mb-2">
+                      <p className="text-sm text-[var(--text-secondary)] mb-2">
                         {event.description}
                       </p>
                     )}
                     {event.location && (
-                      <p className="text-sm text-gray-500 flex items-center gap-1">
+                      <p className="text-sm text-[var(--text-tertiary)] flex items-center gap-1">
                         <span>📍</span>
                         {event.location}
                       </p>
                     )}
                     {event.attendees.length > 0 && (
-                      <p className="text-xs text-gray-500 mt-2">
+                      <p className="text-xs text-[var(--text-tertiary)] mt-2">
                         {event.attendees.length} attendee
                         {event.attendees.length !== 1 ? "s" : ""}
                       </p>
@@ -163,7 +163,7 @@ export function CalendarEventsList({ userId }: CalendarEventsListProps) {
                     href={event.htmlLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="ml-4 px-3 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
+                    className="ml-4 px-3 py-1 text-xs bg-[var(--bubble-action)] text-[var(--text-link)] rounded hover:opacity-80"
                   >
                     View
                   </a>
@@ -174,8 +174,8 @@ export function CalendarEventsList({ userId }: CalendarEventsListProps) {
         )}
       </div>
 
-      <div className="p-4 bg-gray-50 border-t border-gray-200 rounded-b-lg">
-        <p className="text-xs text-gray-600 text-center">
+      <div className="p-4 bg-[var(--bg-secondary)] border-t border-[var(--divider)] rounded-b-lg">
+        <p className="text-xs text-[var(--text-tertiary)] text-center">
           Showing next {events.length} event{events.length !== 1 ? "s" : ""} from
           your Google Calendar
         </p>

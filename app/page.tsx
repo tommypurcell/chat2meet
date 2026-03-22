@@ -1,18 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { CalendarCell } from "@/components/ui/CalendarCell";
 import { TimeChip } from "@/components/ui/TimeChip";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ActionBubble } from "@/components/chat/ActionBubble";
 import { ChatInput } from "@/components/chat/ChatInput";
-import { AvailabilityGrid } from "@/components/calendar/AvailabilityGrid";
+import {
+  MyCalendarEvents,
+  type CalendarView,
+} from "@/components/calendar/MyCalendarEvents";
 import { SchedulingParticipantsBar } from "@/components/chat/SchedulingParticipantsBar";
 import { NetworkPickerModal } from "@/components/network/NetworkPickerModal";
 import { useTheme } from "@/lib/theme";
@@ -36,11 +38,7 @@ import { cn } from "@/lib/utils";
 import {
   CHAT_SUGGESTIONS,
   MEETING_GROUPS,
-  SAMPLE_CHAT_MESSAGES,
-  SAMPLE_TIME_SLOTS,
   SAMPLE_INVITE,
-  WEEK_DAYS,
-  MARCH_DATES,
 } from "@/lib/mock-data";
 
 const ROUTES = [
@@ -325,17 +323,39 @@ export default function Home() {
   const isLoading = status === "submitted" || status === "streaming";
   const chatStarted = messages.length > 0;
 
-  const [selectedDay, setSelectedDay] = useState(21);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [showInvitePreview, setShowInvitePreview] = useState(false);
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const [screensMenuOpen, setScreensMenuOpen] = useState(false);
-  const [showCalendarView, setShowCalendarView] = useState(true);
   const [networkPickerOpen, setNetworkPickerOpen] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [calendarView, setCalendarView] = useState<CalendarView>("week");
+  const [calendarWidth, setCalendarWidth] = useState(350);
+  const isResizing = useRef(false);
 
-  const visibleDates = MARCH_DATES.filter(
-    (d) => d.day >= 16 && d.day <= 22,
-  );
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizing.current = true;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      if (!isResizing.current) return;
+      const newWidth = window.innerWidth - ev.clientX;
+      setCalendarWidth(Math.max(280, Math.min(700, newWidth)));
+    };
+
+    const handleMouseUp = () => {
+      isResizing.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  }, []);
 
   function handleSendMessage(text: string) {
     const trimmed = text.trim();
@@ -521,14 +541,23 @@ export default function Home() {
               </Button>
             </div>
             <div className="flex items-center gap-2">
-              <Link href="/calendar">
-                <Button variant="ghost" size="lg" title="Calendar" className="p-2">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.75" />
-                    <path d="M3 9h18M8 2v4M16 2v4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
-                  </svg>
-                </Button>
-              </Link>
+              <Button
+                type="button"
+                variant="ghost"
+                size="lg"
+                title="My calendar"
+                className={cn(
+                  "p-2",
+                  showCalendar &&
+                    "bg-[var(--bg-tertiary)] text-[var(--accent-primary)]",
+                )}
+                onClick={() => setShowCalendar(!showCalendar)}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                  <rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.75" />
+                  <path d="M3 9h18M8 2v4M16 2v4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+                </svg>
+              </Button>
               <Link href="/availability">
                 <Button variant="ghost" size="lg" title="Availability" className="p-2">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -603,6 +632,58 @@ export default function Home() {
             placeholder="Message… type /network to pick people"
           />
         </div>
+
+        {showCalendar && (
+          <div
+            className="relative flex min-h-0 shrink-0 flex-col border-l border-[var(--divider)] bg-[var(--bg-secondary)] animate-in slide-in-from-right duration-300"
+            style={{ width: calendarWidth }}
+          >
+            <div
+              onMouseDown={handleMouseDown}
+              className="absolute bottom-0 left-0 top-0 z-10 w-1 cursor-col-resize hover:bg-[var(--accent-primary)] transition-colors"
+            />
+            <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-3">
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+                My Calendar
+              </h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowCalendar(false)}
+                aria-label="Close calendar"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M18 6L6 18M6 6l12 12"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </Button>
+            </div>
+            <div className="flex shrink-0 border-b border-[var(--divider)] px-2">
+              {(["month", "week", "day", "list"] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setCalendarView(v)}
+                  className={cn(
+                    "flex-1 py-2 text-center text-[11px] font-semibold capitalize transition-colors border-b-2",
+                    calendarView === v
+                      ? "border-[var(--accent-primary)] text-[var(--accent-primary)]"
+                      : "border-transparent text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]",
+                  )}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <MyCalendarEvents view={calendarView} />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ═══════════════════════════════════════════════════ */}

@@ -186,7 +186,7 @@ export function CalendarView({ userId, view, onEventClick }: CalendarViewProps) 
               <button
                 key={event.id}
                 onClick={() => onEventClick?.(event)}
-                className="w-full text-left px-1.5 py-0.5 rounded text-xs bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100 truncate hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                className="w-full text-left px-1.5 py-0.5 rounded text-xs bg-[var(--bubble-action)] text-[var(--text-link)] truncate hover:bg-[var(--bg-calendar-cell-hover)] transition-colors"
               >
                 {formatTime(event.start)} {event.summary}
               </button>
@@ -243,7 +243,7 @@ export function CalendarView({ userId, view, onEventClick }: CalendarViewProps) 
                 <div className="text-xs font-medium text-[var(--text-tertiary)]">
                   {WEEK_DAYS[i]}
                 </div>
-                <div className={`text-lg font-semibold ${isToday ? 'text-blue-600' : 'text-[var(--text-primary)]'}`}>
+                <div className={`text-lg font-semibold ${isToday ? 'text-[var(--text-link)]' : 'text-[var(--text-primary)]'}`}>
                   {date.getDate()}
                 </div>
               </div>
@@ -273,7 +273,7 @@ export function CalendarView({ userId, view, onEventClick }: CalendarViewProps) 
                       <button
                         key={event.id}
                         onClick={() => onEventClick?.(event)}
-                        className="w-full text-left px-2 py-1 mb-1 rounded text-xs bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                        className="w-full text-left px-2 py-1 mb-1 rounded text-xs bg-[var(--bubble-action)] text-[var(--text-link)] hover:bg-[var(--bg-calendar-cell-hover)] transition-colors"
                       >
                         <div className="font-medium truncate">{event.summary}</div>
                         <div className="text-[10px] opacity-75">
@@ -325,7 +325,7 @@ export function CalendarView({ userId, view, onEventClick }: CalendarViewProps) 
                     <button
                       key={event.id}
                       onClick={() => onEventClick?.(event)}
-                      className="w-full text-left p-3 rounded-lg bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100 hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors"
+                      className="w-full text-left p-3 rounded-lg bg-[var(--bubble-action)] text-[var(--text-link)] hover:bg-[var(--bg-calendar-cell-hover)] transition-colors"
                     >
                       <div className="font-medium mb-1">{event.summary}</div>
                       <div className="text-sm opacity-75">
@@ -360,9 +360,9 @@ export function CalendarView({ userId, view, onEventClick }: CalendarViewProps) 
     return (
       <div className="flex flex-col items-center justify-center h-full p-6 text-center gap-4">
         <div className="max-w-md">
-          <div className="mb-3 flex h-14 w-14 mx-auto items-center justify-center rounded-2xl bg-red-100 dark:bg-red-900/20">
+          <div className="mb-3 flex h-14 w-14 mx-auto items-center justify-center rounded-2xl" style={{ background: 'color-mix(in srgb, var(--accent-danger) 15%, transparent)' }}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <path d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-600 dark:text-red-400" />
+              <path d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--accent-danger)]" />
             </svg>
           </div>
           {isNotConnected ? (
@@ -375,7 +375,7 @@ export function CalendarView({ userId, view, onEventClick }: CalendarViewProps) 
               </p>
               <a
                 href="/settings"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--accent-primary)] text-[var(--bubble-sender-text)] rounded-lg hover:opacity-90 transition-colors font-medium"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                   <path d="M12 4.75v14.5M19.25 12H4.75" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -391,7 +391,7 @@ export function CalendarView({ userId, view, onEventClick }: CalendarViewProps) 
               <p className="text-sm text-[var(--text-secondary)] mb-4">{error}</p>
               <button
                 onClick={fetchEvents}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--accent-primary)] text-[var(--bubble-sender-text)] rounded-lg hover:opacity-90 transition-colors font-medium"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                   <path d="M1 4v6h6M23 20v-6h-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />

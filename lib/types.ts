@@ -27,20 +27,19 @@ export type UserDoc = {
   timezone: string;
   calendarConnected: boolean;
   ghostMode: boolean;
+  /** Public statement visible to others */
+  publicStatement?: string;
+  /** Private statement only visible to user and AI */
+  privateStatement?: string;
   /** Google OAuth subject (`userinfo.id`) when the account was created via Google sign-in */
   googleSub?: string;
   createdAt: FirestoreTimestamp;
   updatedAt: FirestoreTimestamp;
 };
 
-/** `network/{connectionId}` */
+/** `network/{ownerUserId}/{memberId}` */
 export type NetworkConnectionDoc = {
-  ownerUserId: string;
-  memberUserId: string;
-  memberName: string;
-  memberEmail: string;
-  memberPhotoUrl: string;
-  relationStatus: "pending" | "accepted" | "blocked";
+  status: "pending" | "accepted" | "blocked";
   createdAt: FirestoreTimestamp;
   updatedAt: FirestoreTimestamp;
 };

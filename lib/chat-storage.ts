@@ -1,6 +1,6 @@
 import type { UIMessage } from "ai";
 
-const CHAT_MESSAGES_KEY = "when2meet-agent-chat-messages";
+const CHAT_MESSAGES_KEY = "chat2meet-agent-chat-messages";
 
 export function loadChatMessages(): UIMessage[] {
   if (typeof window === "undefined") return [];

@@ -2,7 +2,7 @@
 
 ## Intent
 
-**When2Meet Agent** helps groups find meeting times using conversational flows and server-side logic, modeled after When2Meet’s job (availability + best slot) but **without** the manual grid as the primary UI.
+**Chat2meet Agent** helps groups find meeting times using conversational flows and server-side logic, modeled after When2Meet’s job (availability + best slot) but **without** the manual grid as the primary UI.
 
 ## Stack
 

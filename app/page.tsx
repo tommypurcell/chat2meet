@@ -446,7 +446,7 @@ export default function Home() {
                   </>
                 )}
               </div>
-              <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">When2Meet</h2>
+              <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Chat2meet</h2>
             </div>
             <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
                 {theme === "dark" ? (
@@ -686,7 +686,7 @@ export default function Home() {
         {/* Left: groups */}
         <div className="flex w-[260px] shrink-0 flex-col border-r border-[var(--divider)] bg-[var(--bg-secondary)]">
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-4">
-            <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">When2Meet</h2>
+            <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Chat2meet</h2>
             <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
                 {theme === "dark" ? (
                   <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
@@ -797,7 +797,7 @@ export default function Home() {
       <div className="relative flex flex-1 flex-col md:hidden">
         {/* Nav */}
         <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-3">
-          <h1 className="text-lg font-bold text-[var(--text-primary)]">When2Meet</h1>
+          <h1 className="text-lg font-bold text-[var(--text-primary)]">Chat2meet</h1>
           <div className="flex items-center gap-1">
             <Button
               type="button"

@@ -2,10 +2,10 @@ import React, { useState, useCallback, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 
-const DAYS_NAMES = ["Mon 23", "Tue 24", "Wed 25", "Thu 26", "Fri 27"] as const;
+const WEEK_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const TIME_SLOTS: string[] = [];
-for (let h = 9; h <= 17; h++) {
+for (let h = 8; h <= 20; h++) {
   TIME_SLOTS.push(`${h}:00`);
   TIME_SLOTS.push(`${h}:30`);
 }
@@ -50,6 +50,16 @@ export function AvailabilityGrid({ timePosition = "left" }: AvailabilityGridProp
     async function fetchData() {
       setLoading(true);
       try {
+        // Calculate current week range
+        const now = new Date();
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay());
+        startOfWeek.setHours(0, 0, 0, 0);
+        
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        endOfWeek.setHours(23, 59, 59, 999);
+
         // Fetch saved availability
         const availRes = await fetch("/api/user/availability");
         const availData = await availRes.json();
@@ -58,8 +68,8 @@ export function AvailabilityGrid({ timePosition = "left" }: AvailabilityGridProp
         }
 
         // Fetch Google Calendar events for context
-        const timeMin = "2026-03-23T00:00:00Z";
-        const timeMax = "2026-03-29T23:59:59Z";
+        const timeMin = startOfWeek.toISOString();
+        const timeMax = endOfWeek.toISOString();
          const calRes = await fetch(`/api/calendar/google/events?userId=${user?.uid}&timeMin=${timeMin}&timeMax=${timeMax}`);
         const calData = await calRes.json();
         
@@ -229,8 +239,8 @@ export function AvailabilityGrid({ timePosition = "left" }: AvailabilityGridProp
           <div className="h-2.5 w-2.5 rounded-sm" style={{ background: "rgba(0,255,163,0.3)" }} />
           <span className="text-[10px] text-[var(--text-tertiary)]">GCal</span>
         </div>
-        <span className="ml-auto text-[10px] text-[var(--text-tertiary)]">
-          {loading ? "Syncing..." : "MARCH 23–27"}
+        <span className="ml-auto text-[10px] text-[var(--text-tertiary)] uppercase font-semibold">
+          {new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}
         </span>
       </div>
 
@@ -244,19 +254,26 @@ export function AvailabilityGrid({ timePosition = "left" }: AvailabilityGridProp
         onTouchMove={onPointerMove}
         onTouchEnd={onPointerUp}
       >
-        <table className="w-full border-collapse" style={{ minWidth: DAYS_NAMES.length * 50 + 50 }}>
+        <table className="w-full border-collapse" style={{ minWidth: 7 * 50 + 50 }}>
           <thead>
             <tr>
               {timePosition === "left" && <th className="sticky left-0 z-10 w-[50px] bg-[var(--bg-primary)] p-0" />}
-              {["Mon 23", "Tue 24", "Wed 25", "Thu 26", "Fri 27"].map((day) => (
-                <th
-                  key={day}
-                  className="border-b border-[var(--divider)] px-1 py-1.5 text-center text-[10px] font-semibold text-[var(--text-tertiary)]"
-                >
-                  {day.split(" ")[0]}
-                  <div className="text-[12px] text-[var(--text-primary)]">{day.split(" ")[1]}</div>
-                </th>
-              ))}
+              {Array.from({ length: 7 }).map((_, i) => {
+                const now = new Date();
+                const d = new Date(now);
+                d.setDate(now.getDate() - now.getDay() + i);
+                const dayName = WEEK_DAYS[d.getDay()];
+                const dayNum = d.getDate();
+                return (
+                  <th
+                    key={i}
+                    className="border-b border-[var(--divider)] px-1 py-1.5 text-center text-[10px] font-semibold text-[var(--text-tertiary)]"
+                  >
+                    {dayName}
+                    <div className="text-[12px] text-[var(--text-primary)]">{dayNum}</div>
+                  </th>
+                );
+              })}
               {timePosition === "right" && <th className="sticky right-0 z-10 w-[50px] bg-[var(--bg-primary)] p-0" />}
             </tr>
           </thead>
@@ -266,7 +283,7 @@ export function AvailabilityGrid({ timePosition = "left" }: AvailabilityGridProp
               return (
                 <tr key={time}>
                   {timePosition === "left" && <TimeColumn time={time} isHour={isHour} />}
-                  {[0,1,2,3,4].map((dayIdx) => {
+                  {[0, 1, 2, 3, 4, 5, 6].map((dayIdx) => {
                     const key: CellKey = `${dayIdx}-${slotIdx}`;
                     const bg = getHeatColor(dayIdx, slotIdx);
                     const isSelected = selected.has(key);

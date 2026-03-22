@@ -1,5 +1,3 @@
-import { addDays, endOfDay, format, startOfDay } from "date-fns";
-import { TZDate } from "@date-fns/tz";
 import { eventsToBusyBlocks, mergeBusyBlocks } from "@/lib/calendar-utils";
 
 /** Same shape as calendar API / `format-calendar-for-prompt` events (avoid circular imports). */
@@ -44,7 +42,22 @@ function freeGapsInWindow(
 }
 
 function formatInstant(ms: number, timeZone: string): string {
-  return format(new TZDate(ms, timeZone), "h:mm a");
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date(ms));
+}
+
+function formatDate(ms: number, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(ms));
 }
 
 /**
@@ -67,9 +80,7 @@ export function formatFreeBusyAppendix(
   const busyMerged = mergeBusyBlocks(eventsToBusyBlocks(googleLike));
   const busyIso = busyMerged.map((b) => ({ start: b.start, end: b.end }));
 
-  const zNow = new TZDate(nowMs, timeZone);
   const lines: string[] = [];
-
   lines.push(
     `### Computed availability (${timeZone})`,
     `- Each **Busy** interval below means you are **not** free then.`,
@@ -78,12 +89,17 @@ export function formatFreeBusyAppendix(
     "",
   );
 
+  // Use a simple loop for the next 8 days using standard Date
+  const baseDate = new Date(nowMs);
   for (let d = 0; d < 8; d++) {
-    const day = addDays(startOfDay(zNow), d);
-    const t0 = startOfDay(day).getTime();
-    const t1 = endOfDay(day).getTime();
+    const dayDate = new Date(baseDate);
+    dayDate.setDate(baseDate.getDate() + d);
+    dayDate.setHours(0, 0, 0, 0);
+    const t0 = dayDate.getTime();
+    dayDate.setHours(23, 59, 59, 999);
+    const t1 = dayDate.getTime();
 
-    const dayLabel = format(new TZDate(t0, timeZone), "EEE, MMM d, yyyy");
+    const dayLabel = formatDate(t0, timeZone);
     const gaps = freeGapsInWindow(t0, t1, busyIso);
 
     const busyToday = busyIso.filter((b) => {
@@ -111,28 +127,11 @@ export function formatFreeBusyAppendix(
       gaps.length === 0
         ? "(no free gaps — events cover the day)"
         : gaps
-            .map(([a, b]) => `${formatInstant(a, timeZone)}–${formatInstant(b, timeZone)}`)
+            .map(([start, end]) => `${formatInstant(start, timeZone)}–${formatInstant(end, timeZone)}`)
             .join("; ");
 
     lines.push(
       `- **${dayLabel}:** **Busy:** ${busyStr}. **Free:** ${freeStr}.`,
-    );
-  }
-
-  const tomorrow = addDays(startOfDay(zNow), 1);
-  const t0 = startOfDay(tomorrow).getTime();
-  const t1 = endOfDay(tomorrow).getTime();
-  const tomorrowBusy = busyIso.filter((b) => {
-    const s = new Date(b.start).getTime();
-    const e = new Date(b.end).getTime();
-    return e > t0 && s < t1;
-  });
-  const tomorrowLabel = format(new TZDate(t0, timeZone), "EEEE, MMMM d, yyyy");
-
-  if (tomorrowBusy.length > 0) {
-    lines.push("");
-    lines.push(
-      `**If the user asks "when am I free tomorrow" (tomorrow = ${tomorrowLabel}):** you are **not** free all day — use the busy/free lines for that date above.`,
     );
   }
 

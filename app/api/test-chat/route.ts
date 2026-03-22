@@ -105,7 +105,7 @@ Rules:
 `
       : "";
 
-  const systemPrompt = `You are When2Meet Agent, a smart scheduling assistant.
+  const systemPrompt = `You are Chat2meet Agent, a smart scheduling assistant.
 Help users find times to meet with their friends and colleagues.
 
 ## Current User

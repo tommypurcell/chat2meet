@@ -47,7 +47,7 @@ function AuthCallbackInner() {
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
-          setStatus("✅ Calendar connected! Redirecting...");
+          setStatus("Calendar connected! Redirecting...");
           sessionStorage.removeItem("connectingUserId");
           setTimeout(() => router.push("/"), 2000);
         } else {
@@ -66,20 +66,20 @@ function AuthCallbackInner() {
   }, [searchParams, router]);
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50">
-      <div className="text-center p-8 bg-white rounded-lg shadow max-w-2xl">
-        <h1 className="text-2xl font-semibold mb-4">Calendar Connection</h1>
-        <p className="text-gray-700 mb-4">{status}</p>
+    <div className="flex items-center justify-center min-h-screen bg-[var(--bg-secondary)]">
+      <div className="text-center p-8 bg-[var(--bg-primary)] rounded-lg max-w-2xl" style={{ boxShadow: 'var(--shadow-elevated)' }}>
+        <h1 className="text-2xl font-semibold text-[var(--text-primary)] mb-4">Calendar Connection</h1>
+        <p className="text-[var(--text-secondary)] mb-4">{status}</p>
 
         {debugInfo && (
           <details className="mt-4 text-left">
-            <summary className="cursor-pointer text-sm text-gray-500 hover:text-gray-700">
+            <summary className="cursor-pointer text-sm text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]">
               Debug Info (click to expand)
             </summary>
-            <pre className="mt-2 p-4 bg-gray-100 rounded text-xs overflow-auto">
+            <pre className="mt-2 p-4 bg-[var(--bg-secondary)] rounded text-xs overflow-auto text-[var(--text-secondary)]">
               {debugInfo}
             </pre>
-            <p className="mt-2 text-xs text-gray-600">
+            <p className="mt-2 text-xs text-[var(--text-tertiary)]">
               Current URL: {typeof window !== "undefined" ? window.location.href : ""}
             </p>
           </details>
@@ -93,7 +93,7 @@ export default function AuthCallbackPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-gray-50 text-gray-600">
+        <div className="flex min-h-screen items-center justify-center bg-[var(--bg-secondary)] text-[var(--text-tertiary)]">
           Loading…
         </div>
       }

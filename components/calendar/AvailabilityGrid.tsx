@@ -1,7 +1,8 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
 
-const DAYS = ["Mon 24", "Tue 25", "Wed 26", "Thu 27", "Fri 28"] as const;
+const DAYS_NAMES = ["Mon 23", "Tue 24", "Wed 25", "Thu 26", "Fri 27"] as const;
 
 const TIME_SLOTS: string[] = [];
 for (let h = 9; h <= 17; h++) {
@@ -11,22 +12,104 @@ for (let h = 9; h <= 17; h++) {
 
 type CellKey = `${number}-${number}`;
 
-// Simulated "other people's" availability (heatmap overlay)
-const OTHERS_AVAILABILITY: Record<CellKey, number> = {
-  "1-2": 2, "1-3": 3, "1-4": 3, "1-5": 2,
-  "2-4": 1, "2-5": 2, "2-6": 2, "2-7": 1,
-  "3-6": 2, "3-7": 3, "3-8": 3, "3-9": 2,
-  "0-10": 1, "0-11": 2, "0-12": 2,
-  "4-2": 2, "4-3": 3, "4-4": 2,
-};
+interface CalendarEvent {
+  id: string;
+  summary: string;
+  start: string;
+  end: string;
+}
 
-const MAX_OTHERS = 3;
+interface AvailabilityGridProps {
+  timePosition?: "left" | "right";
+}
 
-export function AvailabilityGrid() {
+export function AvailabilityGrid({ timePosition = "left" }: AvailabilityGridProps) {
+  const { user } = useAuth();
   const [selected, setSelected] = useState<Set<CellKey>>(new Set());
+  const [busySlots, setBusySlots] = useState<Set<CellKey>>(new Set());
   const [painting, setPainting] = useState(false);
+  const [loading, setLoading] = useState(false);
   const paintModeRef = useRef<boolean>(true); // true = adding, false = removing
   const gridRef = useRef<HTMLDivElement>(null);
+
+  // Fetch initial selected and busy slots
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    async function fetchData() {
+      setLoading(true);
+      try {
+        // Fetch saved availability
+        const availRes = await fetch("/api/user/availability");
+        const availData = await availRes.json();
+        if (availData.success && Array.isArray(availData.slots)) {
+          setSelected(new Set(availData.slots as CellKey[]));
+        }
+
+        // Fetch Google Calendar events for context
+        const timeMin = "2026-03-23T00:00:00Z";
+        const timeMax = "2026-03-29T23:59:59Z";
+        const calRes = await fetch(`/api/calendar/google/events?userId=${user?.uid}&timeMin=${timeMin}&timeMax=${timeMax}`);
+        const calData = await calRes.json();
+        
+        if (calData.success && calData.events) {
+          const newBusy = new Set<CellKey>();
+          calData.events.forEach((event: CalendarEvent) => {
+            const start = new Date(event.start);
+            const end = new Date(event.end);
+            const dayOffset = start.getDay() - 1; 
+            if (dayOffset >= 0 && dayOffset < 5) {
+              const startHour = start.getHours();
+              const startMin = start.getMinutes();
+              const endHour = end.getHours();
+              const endMin = end.getMinutes();
+
+              TIME_SLOTS.forEach((slot, slotIdx) => {
+                const [h, m] = slot.split(":").map(Number);
+                const slotTimeInMin = h * 60 + m;
+                const startTimeInMin = startHour * 60 + startMin;
+                const endTimeInMin = endHour * 60 + endMin;
+                if (slotTimeInMin >= startTimeInMin && slotTimeInMin < endTimeInMin) {
+                  newBusy.add(`${dayOffset}-${slotIdx}`);
+                }
+              });
+            }
+          });
+          setBusySlots(newBusy);
+        }
+      } catch (err) {
+        console.error("Failed to fetch data:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchData();
+  }, [user?.uid]);
+
+  // Auto-save whenever "selected" changes after a delay
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    if (selected.size === 0 && !loading) return; // Wait until initial load
+
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        await fetch("/api/user/availability", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slots: Array.from(selected) }),
+        });
+      } catch (err) {
+        console.error("Failed to save availability:", err);
+      }
+    }, 1000); // 1s debounce
+
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, [selected, loading]);
 
   const toggleCell = useCallback((key: CellKey) => {
     setSelected((prev) => {
@@ -57,7 +140,6 @@ export function AvailabilityGrid() {
   const getCellFromEvent = useCallback((e: React.MouseEvent | React.TouchEvent): CellKey | null => {
     const grid = gridRef.current;
     if (!grid) return null;
-
     let clientX: number, clientY: number;
     if ("touches" in e) {
       const touch = e.touches[0];
@@ -68,7 +150,6 @@ export function AvailabilityGrid() {
       clientX = e.clientX;
       clientY = e.clientY;
     }
-
     const el = document.elementFromPoint(clientX, clientY);
     if (!el) return null;
     const cellKey = el.getAttribute("data-cell");
@@ -94,70 +175,74 @@ export function AvailabilityGrid() {
   function getHeatColor(dayIdx: number, slotIdx: number): string {
     const key: CellKey = `${dayIdx}-${slotIdx}`;
     const isSelected = selected.has(key);
-    const othersCount = OTHERS_AVAILABILITY[key] || 0;
+    const isBusy = busySlots.has(key);
 
-    if (isSelected && othersCount > 0) {
-      // Overlap — bright accent
-      const intensity = Math.min(othersCount / MAX_OTHERS, 1);
-      const alpha = 0.4 + intensity * 0.6;
-      return `rgba(0, 255, 163, ${alpha})`;
+    if (isSelected && isBusy) {
+      return "rgba(0, 255, 163, 0.8)";
     }
     if (isSelected) {
-      // Only you
       return "var(--accent-primary)";
     }
-    if (othersCount > 0) {
-      // Others only
-      const intensity = Math.min(othersCount / MAX_OTHERS, 1);
-      const alpha = 0.08 + intensity * 0.2;
-      return `rgba(0, 255, 163, ${alpha})`;
+    if (isBusy) {
+      return "rgba(0, 255, 163, 0.15)";
     }
     return "transparent";
   }
 
+  const TimeColumn = ({ time, isHour }: { time: string, isHour: boolean }) => (
+    <td
+      className={cn(
+        "sticky z-10 bg-[var(--bg-primary)] text-[11px] font-medium text-[var(--text-tertiary)]",
+        timePosition === "left" ? "left-0 pr-2 text-right" : "right-0 pl-2 text-left",
+        isHour ? "pt-1" : "pt-0",
+      )}
+      style={{ width: 50, height: 28 }}
+    >
+      {isHour ? time : ""}
+    </td>
+  );
+
   return (
     <div className="flex h-full flex-col">
       {/* Legend */}
-      <div className="flex items-center gap-4 px-4 pb-3">
+      <div className="flex items-center gap-3 px-3 pb-3">
         <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded-sm bg-[var(--accent-primary)]" />
-          <span className="text-[11px] text-[var(--text-tertiary)]">You</span>
+          <div className="h-2.5 w-2.5 rounded-sm bg-[var(--accent-primary)]" />
+          <span className="text-[10px] text-[var(--text-tertiary)]">Me</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded-sm" style={{ background: "rgba(0,255,163,0.2)" }} />
-          <span className="text-[11px] text-[var(--text-tertiary)]">Others</span>
+          <div className="h-2.5 w-2.5 rounded-sm" style={{ background: "rgba(0,255,163,0.3)" }} />
+          <span className="text-[10px] text-[var(--text-tertiary)]">GCal</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="h-3 w-3 rounded-sm" style={{ background: "rgba(0,255,163,0.8)" }} />
-          <span className="text-[11px] text-[var(--text-tertiary)]">Overlap</span>
-        </div>
-        <span className="ml-auto text-[11px] text-[var(--text-tertiary)]">
-          {selected.size} slots selected
+        <span className="ml-auto text-[10px] text-[var(--text-tertiary)]">
+          {loading ? "Syncing..." : "MARCH 23–27"}
         </span>
       </div>
 
       {/* Grid */}
       <div
         ref={gridRef}
-        className="flex-1 overflow-auto select-none"
+        className="flex-1 overflow-auto select-none custom-scrollbar"
         onMouseMove={onPointerMove}
         onMouseUp={onPointerUp}
         onMouseLeave={onPointerUp}
         onTouchMove={onPointerMove}
         onTouchEnd={onPointerUp}
       >
-        <table className="w-full border-collapse" style={{ minWidth: DAYS.length * 80 + 60 }}>
+        <table className="w-full border-collapse" style={{ minWidth: DAYS_NAMES.length * 50 + 50 }}>
           <thead>
             <tr>
-              <th className="sticky left-0 z-10 w-[60px] bg-[var(--bg-primary)] p-0" />
-              {DAYS.map((day) => (
+              {timePosition === "left" && <th className="sticky left-0 z-10 w-[50px] bg-[var(--bg-primary)] p-0" />}
+              {["Mon 23", "Tue 24", "Wed 25", "Thu 26", "Fri 27"].map((day) => (
                 <th
                   key={day}
-                  className="border-b border-[var(--divider)] px-1 py-2 text-center text-xs font-semibold text-[var(--text-secondary)]"
+                  className="border-b border-[var(--divider)] px-1 py-1.5 text-center text-[10px] font-semibold text-[var(--text-tertiary)]"
                 >
-                  {day}
+                  {day.split(" ")[0]}
+                  <div className="text-[12px] text-[var(--text-primary)]">{day.split(" ")[1]}</div>
                 </th>
               ))}
+              {timePosition === "right" && <th className="sticky right-0 z-10 w-[50px] bg-[var(--bg-primary)] p-0" />}
             </tr>
           </thead>
           <tbody>
@@ -165,16 +250,8 @@ export function AvailabilityGrid() {
               const isHour = time.endsWith(":00");
               return (
                 <tr key={time}>
-                  <td
-                    className={cn(
-                      "sticky left-0 z-10 bg-[var(--bg-primary)] pr-2 text-right text-[11px] font-medium text-[var(--text-tertiary)]",
-                      isHour ? "pt-1" : "pt-0",
-                    )}
-                    style={{ width: 60, height: 28 }}
-                  >
-                    {isHour ? time : ""}
-                  </td>
-                  {DAYS.map((_, dayIdx) => {
+                  {timePosition === "left" && <TimeColumn time={time} isHour={isHour} />}
+                  {[0,1,2,3,4].map((dayIdx) => {
                     const key: CellKey = `${dayIdx}-${slotIdx}`;
                     const bg = getHeatColor(dayIdx, slotIdx);
                     const isSelected = selected.has(key);
@@ -204,12 +281,26 @@ export function AvailabilityGrid() {
                       />
                     );
                   })}
+                  {timePosition === "right" && <TimeColumn time={time} isHour={isHour} />}
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
+      <style jsx>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+          height: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: var(--divider);
+          border-radius: 10px;
+        }
+      `}</style>
     </div>
   );
 }

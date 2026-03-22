@@ -34,18 +34,33 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = request.nextUrl;
-    const limit = Math.min(Number(searchParams.get("limit")) || 50, 100);
+    const limitParams = Math.min(Number(searchParams.get("limit")) || 50, 100);
     const offset = Number(searchParams.get("offset")) || 0;
+    const query = searchParams.get("query")?.toLowerCase();
 
-    const snapshot = await collection("users")
-      .orderBy("createdAt", "desc")
-      .limit(limit)
-      .offset(offset)
-      .get();
+    let snapshot;
+    if (query) {
+      // Basic substring search via in-memory filtering for demo scale. 
+      // Firestore lacks full-text search natively without extra solutions.
+      snapshot = await collection("users").orderBy("createdAt", "desc").limit(500).get();
+    } else {
+      snapshot = await collection("users")
+        .orderBy("createdAt", "desc")
+        .limit(limitParams)
+        .offset(offset)
+        .get();
+    }
 
-    const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    let users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    return successResponse({ users, count: users.length, limit, offset });
+    if (query) {
+      users = users.filter((u: any) => 
+        (u.name && u.name.toLowerCase().includes(query)) ||
+        (u.email && u.email.toLowerCase().includes(query))
+      ).slice(offset, offset + limitParams);
+    }
+
+    return successResponse({ users, count: users.length, limit: limitParams, offset });
   } catch (error) {
     console.error("Error fetching users:", error);
     return errorResponse("Failed to fetch users");

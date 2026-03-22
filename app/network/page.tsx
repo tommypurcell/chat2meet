@@ -1,27 +1,47 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { AddFriendsModal } from "@/components/events/AddFriendsModal";
-import { MOCK_FRIENDS } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
-import type { Friend } from "@/lib/mock-data";
+import { MOCK_CONNECTIONS } from "@/lib/data";
+
+type Friend = {
+  id: string;       // Document ID in network collection
+  userId: string;   // memberUserId
+  name: string;
+  email: string;
+  status: "accepted" | "pending";
+};
 
 export default function NetworkPage() {
-  const [friends, setFriends] = useState<Friend[]>(MOCK_FRIENDS);
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+
+  useEffect(() => {
+    // Simulate fetching from data.ts
+    setLoading(true);
+    setTimeout(() => {
+      setFriends(MOCK_CONNECTIONS);
+      setLoading(false);
+    }, 500);
+  }, []);
 
   const acceptedFriends = friends.filter((f) => f.status === "accepted");
   const pendingFriends = friends.filter((f) => f.status === "pending");
 
   function handleRemoveFriend(id: string) {
+    // Ideally this would DELETE /api/network?id=... but keeping it local for now if API isn't built
     setFriends(friends.filter((f) => f.id !== id));
   }
 
   function handleAcceptFriend(id: string) {
+    // Ideally PATCH /api/network
     setFriends(
       friends.map((f) =>
         f.id === id ? { ...f, status: "accepted" as const } : f
@@ -33,14 +53,22 @@ export default function NetworkPage() {
     setFriends(friends.filter((f) => f.id !== id));
   }
 
-  function handleInviteFriends(emails: string[]) {
-    const newFriends: Friend[] = emails.map((email, i) => ({
-      id: `f${friends.length + i}`,
-      name: email.split("@")[0],
-      email,
-      status: "pending",
+  function handleInviteFriends(selectedUsers: any[]) {
+    // Filter out users already in network
+    const newUsers = selectedUsers.filter(u => 
+      !friends.some(f => f.userId === (u.id || u.uid))
+    );
+
+    const newFriends: Friend[] = newUsers.map(user => ({
+      id: `mock-${Math.random().toString(36).substr(2, 9)}`,
+      userId: user.id || user.uid,
+      name: user.name || user.displayName || "Unknown User",
+      email: user.email || "",
+      status: "pending"
     }));
+
     setFriends([...friends, ...newFriends]);
+    setModalOpen(false);
   }
 
   return (
@@ -62,14 +90,16 @@ export default function NetworkPage() {
           size="sm"
           onClick={() => setModalOpen(true)}
         >
-          Add friend
+          Add to network
         </Button>
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-2xl px-6 py-8">
-          {friends.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-12 text-[var(--text-secondary)]">Loading network...</div>
+          ) : friends.length === 0 ? (
             <EmptyState onAddClick={() => setModalOpen(true)} />
           ) : (
             <div className="flex flex-col gap-6">
@@ -147,7 +177,7 @@ export default function NetworkPage() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onInvite={handleInviteFriends}
-        title="Add friends to your network"
+        title="Search users to add"
       />
     </div>
   );
@@ -214,11 +244,11 @@ function EmptyState({ onAddClick }: { onAddClick: () => void }) {
           No friends yet
         </h2>
         <p className="mt-1 text-sm text-[var(--text-secondary)]">
-          Start building your network by adding friends
+          Search for users to add them to your network
         </p>
       </div>
       <Button variant="primary" onClick={onAddClick}>
-        Add your first friend
+        Add someone
       </Button>
     </div>
   );

@@ -1,27 +1,44 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
-import { CalendarCell } from "@/components/ui/CalendarCell";
+import { DefaultChatTransport } from "ai";
 import { TimeChip } from "@/components/ui/TimeChip";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ActionBubble } from "@/components/chat/ActionBubble";
 import { ChatInput } from "@/components/chat/ChatInput";
-import { AvailabilityGrid } from "@/components/calendar/AvailabilityGrid";
+import {
+  MyCalendarEvents,
+  type CalendarView,
+} from "@/components/calendar/MyCalendarEvents";
+import { SchedulingParticipantsBar } from "@/components/chat/SchedulingParticipantsBar";
+import { NetworkPickerModal } from "@/components/network/NetworkPickerModal";
 import { useTheme } from "@/lib/theme";
-import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
+import {
+  clearChatMessages,
+  loadChatMessages,
+  saveChatMessages,
+} from "@/lib/chat-storage";
+import {
+  loadSchedulingParticipants,
+  saveSchedulingParticipants,
+} from "@/lib/scheduling-storage";
+import type { SchedulingParticipant } from "@/lib/types";
+import {
+  formatCalendarEventsForPrompt,
+  formatCalendarLoadErrorPrompt,
+  formatNoCalendarConnectedPrompt,
+} from "@/lib/format-calendar-for-prompt";
+import { cn, mergeUiMessageTextParts } from "@/lib/utils";
 import {
   CHAT_SUGGESTIONS,
   MEETING_GROUPS,
-  SAMPLE_CHAT_MESSAGES,
-  SAMPLE_TIME_SLOTS,
   SAMPLE_INVITE,
-  WEEK_DAYS,
-  MARCH_DATES,
 } from "@/lib/mock-data";
 
 const ROUTES = [
@@ -29,6 +46,7 @@ const ROUTES = [
   { href: "/onboarding/preferences", label: "2. Preferences" },
   { href: "/", label: "3. Home" },
   { href: "/network", label: "4. Network" },
+  { href: "/addnetwork", label: "Add network" },
   { href: "/invite/demo", label: "7. Invite" },
   { href: "/join/demo", label: "8. Join Gate" },
   { href: "/event/demo", label: "9. Event Detail" },
@@ -121,12 +139,10 @@ function ChatContent({
       ) : (
         messages.map((msg) => (
           <ChatMessage key={msg.id} role={msg.role}>
-            {msg.parts
-              ?.map((part: any, i: number) => {
-                if (part.type === "text") return <span key={i} className="whitespace-pre-wrap">{part.text}</span>;
-                return null;
-              })
-              .filter(Boolean) || msg.content}
+            <span className="whitespace-pre-wrap">
+              {mergeUiMessageTextParts(msg.parts) ||
+                (typeof msg.content === "string" ? msg.content : "")}
+            </span>
           </ChatMessage>
         ))
       )}
@@ -162,24 +178,201 @@ function ChatContent({
 /* ── Main page ────────────────────────────────────────── */
 export default function Home() {
   const { theme, toggle } = useTheme();
+  const { user } = useAuth(); // Get logged-in user
   const pathname = usePathname();
-  const { messages, sendMessage, status } = useChat();
+  const [schedulingParticipants, setSchedulingParticipants] = useState<
+    SchedulingParticipant[]
+  >([]);
+  const schedulingParticipantsRef = useRef<SchedulingParticipant[]>([]);
+
+  useEffect(() => {
+    schedulingParticipantsRef.current = schedulingParticipants;
+  }, [schedulingParticipants]);
+
+  useEffect(() => {
+    if (pathname === "/") {
+      setSchedulingParticipants(loadSchedulingParticipants());
+    }
+  }, [pathname]);
+
+  useEffect(() => {
+    saveSchedulingParticipants(schedulingParticipants);
+  }, [schedulingParticipants]);
+
+  /** Keep in sync during render (not only in useEffect) so the first chat request sends the real Firebase uid. */
+  const currentUserIdRef = useRef<string | undefined>(undefined);
+  currentUserIdRef.current = user?.uid;
+
+  /** Preformatted markdown for /api/chat — same payload as GET /api/calendar/google/events, sent as `calendarContext`. */
+  const [calendarPromptForChat, setCalendarPromptForChat] = useState("");
+  const calendarPromptForChatRef = useRef("");
+  calendarPromptForChatRef.current = calendarPromptForChat;
+
+  useEffect(() => {
+    if (!user?.uid) {
+      setCalendarPromptForChat("");
+      return;
+    }
+
+    const uid = user.uid;
+
+    const fetchCalendarData = async () => {
+      try {
+        const today = new Date();
+        const nextWeek = new Date(today);
+        nextWeek.setDate(today.getDate() + 7);
+        const rangeLabel = `${today.toISOString().split("T")[0]} → ${nextWeek.toISOString().split("T")[0]}`;
+
+        const response = await fetch(
+          `/api/calendar/google/events?userId=${uid}&timeMin=${today.toISOString()}&timeMax=${nextWeek.toISOString()}&maxResults=100`,
+        );
+
+        const data = (await response.json()) as {
+          success?: boolean;
+          events?: Array<{
+            summary?: string;
+            start?: string | null;
+            end?: string | null;
+          }>;
+          error?: string;
+        };
+
+        if (!response.ok || data.error) {
+          const msg = data.error || response.statusText;
+          const noAccount =
+            response.status === 404 ||
+            (typeof msg === "string" && msg.includes("No active Google Calendar"));
+          setCalendarPromptForChat(
+            noAccount
+              ? formatNoCalendarConnectedPrompt(uid)
+              : formatCalendarLoadErrorPrompt(msg || "Request failed"),
+          );
+          return;
+        }
+
+        if (data.success && Array.isArray(data.events)) {
+          setCalendarPromptForChat(
+            formatCalendarEventsForPrompt(
+              uid,
+              data.events,
+              `next 7 days (${rangeLabel})`,
+              user?.timezone ?? "America/Los_Angeles",
+            ),
+          );
+        } else {
+          setCalendarPromptForChat("");
+        }
+      } catch (e) {
+        setCalendarPromptForChat(
+          formatCalendarLoadErrorPrompt(
+            e instanceof Error ? e.message : "fetch failed",
+          ),
+        );
+      }
+    };
+
+    fetchCalendarData();
+  }, [user]);
+
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: "/api/chat",
+        credentials: "include",
+        prepareSendMessagesRequest: async (opts) => ({
+          body: {
+            ...opts.body,
+            id: opts.id,
+            messages: opts.messages,
+            trigger: opts.trigger,
+            messageId: opts.messageId,
+            schedulingParticipants: schedulingParticipantsRef.current,
+            currentUserId: currentUserIdRef.current ?? undefined,
+            calendarContext: calendarPromptForChatRef.current || undefined,
+          },
+        }),
+      }),
+    [],
+  );
+
+  const [chatHydrated, setChatHydrated] = useState(false);
+
+  const { messages, sendMessage, status, setMessages, stop } = useChat({
+    transport,
+  });
+
+  useEffect(() => {
+    const saved = loadChatMessages();
+    if (saved.length > 0) {
+      setMessages(saved);
+    }
+    setChatHydrated(true);
+  }, [setMessages]);
+
+  useEffect(() => {
+    if (!chatHydrated) return;
+    saveChatMessages(messages);
+  }, [messages, chatHydrated]);
   const isLoading = status === "submitted" || status === "streaming";
   const chatStarted = messages.length > 0;
 
-  const [selectedDay, setSelectedDay] = useState(21);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [showInvitePreview, setShowInvitePreview] = useState(false);
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const [screensMenuOpen, setScreensMenuOpen] = useState(false);
-  const [showCalendarView, setShowCalendarView] = useState(true);
+  const [networkPickerOpen, setNetworkPickerOpen] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [calendarView, setCalendarView] = useState<CalendarView>("week");
+  const [calendarWidth, setCalendarWidth] = useState(350);
+  const isResizing = useRef(false);
 
-  const visibleDates = MARCH_DATES.filter(
-    (d) => d.day >= 16 && d.day <= 22,
-  );
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizing.current = true;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      if (!isResizing.current) return;
+      const newWidth = window.innerWidth - ev.clientX;
+      setCalendarWidth(Math.max(280, Math.min(700, newWidth)));
+    };
+
+    const handleMouseUp = () => {
+      isResizing.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  }, []);
 
   function handleSendMessage(text: string) {
+    const trimmed = text.trim();
+    if (trimmed.toLowerCase() === "/network") {
+      if (user?.uid) setNetworkPickerOpen(true);
+      return;
+    }
     sendMessage({ parts: [{ type: "text", text }] });
+  }
+
+  function handleClearChat() {
+    if (status === "streaming" || status === "submitted") {
+      stop();
+    }
+    clearChatMessages();
+    setMessages([]);
+    setSelectedSlot(null);
+    setShowInvitePreview(false);
+  }
+
+  function handleRemoveParticipant(memberUserId: string) {
+    setSchedulingParticipants((prev) =>
+      prev.filter((p) => p.memberUserId !== memberUserId),
+    );
   }
 
   return (
@@ -326,16 +519,38 @@ export default function Home() {
         {/* ── Right column: Full-width Chat ──────────────── */}
         <div className="flex flex-1 flex-col bg-[var(--bg-sheet)]">
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-5 py-4">
-            <h2 className="text-lg font-semibold">Chat</h2>
+            <div className="flex min-w-0 items-center gap-2">
+              <h2 className="text-lg font-semibold">Chat</h2>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleClearChat}
+                disabled={messages.length === 0}
+                title="Clear chat and start over"
+                className="shrink-0 text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] disabled:opacity-40"
+              >
+                Clear
+              </Button>
+            </div>
             <div className="flex items-center gap-2">
-              <Link href="/calendar">
-                <Button variant="ghost" size="lg" title="Calendar" className="p-2">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.75" />
-                    <path d="M3 9h18M8 2v4M16 2v4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
-                  </svg>
-                </Button>
-              </Link>
+              <Button
+                type="button"
+                variant="ghost"
+                size="lg"
+                title="My calendar"
+                className={cn(
+                  "p-2",
+                  showCalendar &&
+                    "bg-[var(--bg-tertiary)] text-[var(--accent-primary)]",
+                )}
+                onClick={() => setShowCalendar(!showCalendar)}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                  <rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.75" />
+                  <path d="M3 9h18M8 2v4M16 2v4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+                </svg>
+              </Button>
               <Link href="/availability">
                 <Button variant="ghost" size="lg" title="Availability" className="p-2">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -401,11 +616,67 @@ export default function Home() {
             )}
           </div>
 
+          <SchedulingParticipantsBar
+            participants={schedulingParticipants}
+            onRemove={handleRemoveParticipant}
+          />
           <ChatInput
             onSend={handleSendMessage}
-            placeholder="Schedule a meeting..."
+            placeholder="Message… type /network to view your network"
           />
         </div>
+
+        {showCalendar && (
+          <div
+            className="relative flex min-h-0 shrink-0 flex-col border-l border-[var(--divider)] bg-[var(--bg-secondary)] animate-in slide-in-from-right duration-300"
+            style={{ width: calendarWidth }}
+          >
+            <div
+              onMouseDown={handleMouseDown}
+              className="absolute bottom-0 left-0 top-0 z-10 w-1 cursor-col-resize hover:bg-[var(--accent-primary)] transition-colors"
+            />
+            <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-3">
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+                My Calendar
+              </h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowCalendar(false)}
+                aria-label="Close calendar"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M18 6L6 18M6 6l12 12"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </Button>
+            </div>
+            <div className="flex shrink-0 border-b border-[var(--divider)] px-2">
+              {(["month", "week", "day", "list"] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setCalendarView(v)}
+                  className={cn(
+                    "flex-1 py-2 text-center text-[11px] font-semibold capitalize transition-colors border-b-2",
+                    calendarView === v
+                      ? "border-[var(--accent-primary)] text-[var(--accent-primary)]"
+                      : "border-transparent text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]",
+                  )}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <MyCalendarEvents view={calendarView} />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ═══════════════════════════════════════════════════ */}
@@ -465,7 +736,20 @@ export default function Home() {
         {/* Right: chat */}
         <div className="flex flex-1 flex-col bg-[var(--bg-primary)]">
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-5 py-4">
-            <h2 className="text-lg font-semibold">Chat</h2>
+            <div className="flex min-w-0 items-center gap-2">
+              <h2 className="text-lg font-semibold">Chat</h2>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleClearChat}
+                disabled={messages.length === 0}
+                title="Clear chat and start over"
+                className="shrink-0 text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)] disabled:opacity-40"
+              >
+                Clear
+              </Button>
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto overscroll-contain py-2">
             {!chatStarted ? (
@@ -498,7 +782,11 @@ export default function Home() {
               />
             )}
           </div>
-          <ChatInput onSend={handleSendMessage} placeholder="Schedule a meeting..." />
+          <SchedulingParticipantsBar
+            participants={schedulingParticipants}
+            onRemove={handleRemoveParticipant}
+          />
+          <ChatInput onSend={handleSendMessage} placeholder="Message… type /network to view your network" />
         </div>
       </div>
 
@@ -511,6 +799,25 @@ export default function Home() {
         <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-3">
           <h1 className="text-lg font-bold text-[var(--text-primary)]">When2Meet</h1>
           <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={handleClearChat}
+              disabled={messages.length === 0}
+              aria-label="Clear chat and start over"
+              title="Clear chat"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path
+                  d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </Button>
             <Link href="/network">
               <Button variant="ghost" size="icon" aria-label="Network">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -608,8 +915,20 @@ export default function Home() {
         </div>
 
         {/* Chat input — always visible */}
-        <ChatInput onSend={handleSendMessage} placeholder="Schedule a meeting..." />
+        <SchedulingParticipantsBar
+          participants={schedulingParticipants}
+          onRemove={handleRemoveParticipant}
+        />
+        <ChatInput onSend={handleSendMessage} placeholder="Message… type /network to view your network" />
       </div>
+
+      {user?.uid ? (
+        <NetworkPickerModal
+          open={networkPickerOpen}
+          ownerUserId={user.uid}
+          onClose={() => setNetworkPickerOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { AddFriendsModal } from "@/components/events/AddFriendsModal";
 import { cn } from "@/lib/utils";
+import { MOCK_CONNECTIONS } from "@/lib/data";
 
 type Friend = {
   id: string;       // Document ID in network collection
@@ -23,47 +24,13 @@ export default function NetworkPage() {
   const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.user) {
-          setCurrentUser(data.user);
-        } else {
-          setLoading(false);
-        }
-      })
-      .catch(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    if (!currentUser) return;
-    
+    // Simulate fetching from data.ts
     setLoading(true);
-    Promise.all([
-      fetch(`/api/network?userId=${currentUser.uid}&status=accepted`).then(res => res.json()),
-      fetch(`/api/network?userId=${currentUser.uid}&status=pending`).then(res => res.json())
-    ]).then(([accepted, pending]) => {
-      const all: Friend[] = [
-        ...(accepted.connections || []).map((c: any) => ({
-           id: c.id,
-           userId: c.memberUserId,
-           name: c.memberName,
-           email: c.memberEmail,
-           status: "accepted" as const
-        })),
-        ...(pending.connections || []).map((c: any) => ({
-           id: c.id,
-           userId: c.memberUserId,
-           name: c.memberName,
-           email: c.memberEmail,
-           status: "pending" as const
-        }))
-      ];
-      setFriends(all);
-    }).finally(() => {
+    setTimeout(() => {
+      setFriends(MOCK_CONNECTIONS);
       setLoading(false);
-    });
-  }, [currentUser]);
+    }, 500);
+  }, []);
 
   const acceptedFriends = friends.filter((f) => f.status === "accepted");
   const pendingFriends = friends.filter((f) => f.status === "pending");
@@ -87,35 +54,21 @@ export default function NetworkPage() {
   }
 
   function handleInviteFriends(selectedUsers: any[]) {
-    if (!currentUser) return;
-
     // Filter out users already in network
     const newUsers = selectedUsers.filter(u => 
       !friends.some(f => f.userId === (u.id || u.uid))
     );
 
-    Promise.all(newUsers.map(user => 
-      fetch("/api/network", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ownerUserId: currentUser.uid,
-          memberUserId: user.id || user.uid,
-          memberName: user.name || user.displayName || "Unknown User",
-          memberEmail: user.email || "",
-          relationStatus: "pending"
-        })
-      }).then(res => res.json())
-    )).then((results) => {
-       const newFriends: Friend[] = results.map(res => ({
-         id: res.id,
-         userId: res.memberUserId,
-         name: res.memberName,
-         email: res.memberEmail,
-         status: "pending"
-       }));
-       setFriends([...friends, ...newFriends]);
-    });
+    const newFriends: Friend[] = newUsers.map(user => ({
+      id: `mock-${Math.random().toString(36).substr(2, 9)}`,
+      userId: user.id || user.uid,
+      name: user.name || user.displayName || "Unknown User",
+      email: user.email || "",
+      status: "pending"
+    }));
+
+    setFriends([...friends, ...newFriends]);
+    setModalOpen(false);
   }
 
   return (
@@ -136,7 +89,6 @@ export default function NetworkPage() {
           variant="primary"
           size="sm"
           onClick={() => setModalOpen(true)}
-          disabled={!currentUser}
         >
           Add to network
         </Button>
@@ -147,8 +99,6 @@ export default function NetworkPage() {
         <div className="mx-auto max-w-2xl px-6 py-8">
           {loading ? (
             <div className="text-center py-12 text-[var(--text-secondary)]">Loading network...</div>
-          ) : !currentUser ? (
-            <div className="text-center py-12 text-[var(--text-secondary)]">Please sign in to view your network.</div>
           ) : friends.length === 0 ? (
             <EmptyState onAddClick={() => setModalOpen(true)} />
           ) : (

@@ -6,6 +6,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import type { SchedulingParticipant } from "@/lib/types";
+import { MOCK_CONNECTIONS } from "@/lib/data";
 
 type ConnectionRow = {
   id: string;
@@ -44,44 +45,26 @@ export function NetworkPickerModal({
   }, [open, onClose]);
 
   useEffect(() => {
-    if (!open || !ownerUserId) return;
-    let cancelled = false;
+    if (!open) return;
+    
     setLoading(true);
     setError(null);
     setSelected(new Set());
 
-    fetch(
-      `/api/network?userId=${encodeURIComponent(ownerUserId)}&status=accepted`,
-    )
-      .then((res) => res.json())
-      .then((data) => {
-        if (cancelled) return;
-        if (!data.connections || !Array.isArray(data.connections)) {
-          setError(data.error || "Could not load network");
-          setConnections([]);
-          return;
-        }
-        const rows: ConnectionRow[] = data.connections.map(
-          (c: Record<string, unknown>) => ({
-            id: String(c.id),
-            memberUserId: String(c.memberUserId),
-            memberName: String(c.memberName ?? ""),
-            memberEmail: String(c.memberEmail ?? ""),
-          }),
-        );
-        setConnections(rows);
-      })
-      .catch(() => {
-        if (!cancelled) setError("Failed to load network");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    // Simulate async mock load
+    const timeout = setTimeout(() => {
+      const accepted = MOCK_CONNECTIONS.filter(c => c.status === "accepted");
+      setConnections(accepted.map(c => ({
+        id: c.id,
+        memberUserId: c.userId,
+        memberName: c.name,
+        memberEmail: c.email
+      })));
+      setLoading(false);
+    }, 400);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [open, ownerUserId]);
+    return () => clearTimeout(timeout);
+  }, [open]);
 
   if (!open) return null;
 

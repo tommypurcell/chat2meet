@@ -2,6 +2,7 @@ import { useEffect, useId, useState } from "react";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import { MOCK_CONNECTIONS } from "@/lib/data";
 
 export type AddFriendsModalProps = {
   open: boolean;
@@ -43,14 +44,17 @@ export function AddFriendsModal({
     }
     const delay = setTimeout(() => {
       setLoading(true);
-      fetch(`/api/users?query=${encodeURIComponent(query)}&limit=10`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.users) {
-            setResults(data.users);
-          }
-        })
-        .finally(() => setLoading(false));
+      // Local search in mock connections
+      const filtered = MOCK_CONNECTIONS.filter(u => 
+        u.name.toLowerCase().includes(query.toLowerCase()) ||
+        u.email.toLowerCase().includes(query.toLowerCase())
+      ).map(u => ({
+        id: u.userId,
+        name: u.name,
+        email: u.email
+      }));
+      setResults(filtered);
+      setLoading(false);
     }, 300);
     return () => clearTimeout(delay);
   }, [query]);

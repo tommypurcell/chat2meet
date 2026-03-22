@@ -11,6 +11,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ActionBubble } from "@/components/chat/ActionBubble";
 import { ChatInput } from "@/components/chat/ChatInput";
+import { AvailabilityHeatmap } from "@/components/chat/AvailabilityHeatmap";
 import {
   MyCalendarEvents,
   type CalendarView,
@@ -216,6 +217,8 @@ export default function Home() {
   const calendarPromptForChatRef = useRef("");
   calendarPromptForChatRef.current = calendarPromptForChat;
 
+  // Google events for chat + persist snapshot to Firestore `calendars/{uid}`.
+  // Uses [user] (not []) so this runs after auth resolves; [] would fire before `user` exists.
   useEffect(() => {
     if (!user?.uid) {
       setCalendarPromptForChat("");
@@ -269,6 +272,21 @@ export default function Home() {
               tz,
             ),
           );
+
+          void fetch("/api/calendars/sync", {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              events: data.events,
+              timeMin: today.toISOString(),
+              timeMax: nextWeek.toISOString(),
+              timezone: tz,
+              displayName: user?.displayName ?? null,
+            }),
+          }).catch(() => {
+            /* non-blocking; chat still works if sync fails */
+          });
         } else {
           setCalendarPromptForChat("");
         }
@@ -335,7 +353,10 @@ export default function Home() {
   const [showCalendar, setShowCalendar] = useState(false);
   const [calendarView, setCalendarView] = useState<CalendarView>("week");
   const [calendarWidth, setCalendarWidth] = useState(350);
+  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [heatmapWidth, setHeatmapWidth] = useState(350);
   const isResizing = useRef(false);
+  const isResizingHeatmap = useRef(false);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -351,6 +372,30 @@ export default function Home() {
 
     const handleMouseUp = () => {
       isResizing.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  }, []);
+
+  const handleHeatmapMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizingHeatmap.current = true;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      if (!isResizingHeatmap.current) return;
+      const newWidth = window.innerWidth - ev.clientX;
+      setHeatmapWidth(Math.max(280, Math.min(700, newWidth)));
+    };
+
+    const handleMouseUp = () => {
+      isResizingHeatmap.current = false;
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
       document.removeEventListener("mousemove", handleMouseMove);
@@ -549,6 +594,30 @@ export default function Home() {
                 type="button"
                 variant="ghost"
                 size="lg"
+                title="Availability heatmap"
+                className={cn(
+                  "p-2",
+                  showHeatmap &&
+                    "bg-[var(--bg-tertiary)] text-[var(--accent-primary)]",
+                )}
+                onClick={() => setShowHeatmap(!showHeatmap)}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                  <rect x="3" y="3" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
+                  <rect x="10" y="3" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
+                  <rect x="17" y="3" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
+                  <rect x="3" y="10" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
+                  <rect x="10" y="10" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
+                  <rect x="17" y="10" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
+                  <rect x="3" y="17" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
+                  <rect x="10" y="17" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
+                  <rect x="17" y="17" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
+                </svg>
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="lg"
                 title="My calendar"
                 className={cn(
                   "p-2",
@@ -685,6 +754,44 @@ export default function Home() {
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
               <MyCalendarEvents view={calendarView} />
+            </div>
+          </div>
+        )}
+
+        {showHeatmap && (
+          <div
+            className="relative flex min-h-0 shrink-0 flex-col border-l border-[var(--divider)] bg-[var(--bg-secondary)] animate-in slide-in-from-right duration-300"
+            style={{ width: heatmapWidth }}
+          >
+            <div
+              onMouseDown={handleHeatmapMouseDown}
+              className="absolute bottom-0 left-0 top-0 z-10 w-1 cursor-col-resize hover:bg-[var(--accent-primary)] transition-colors"
+            />
+            <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-3">
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+                Availability Heatmap
+              </h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowHeatmap(false)}
+                aria-label="Close heatmap"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M18 6L6 18M6 6l12 12"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </Button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <AvailabilityHeatmap
+                messages={messages}
+                schedulingParticipants={schedulingParticipants}
+              />
             </div>
           </div>
         )}

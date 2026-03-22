@@ -15,8 +15,16 @@ import { defaultDevUserId } from "@/lib/dev-user-ids";
 import {
   formatCalendarEventsForPrompt,
   formatCalendarLoadErrorPrompt,
+  formatMockNetworkCalendarsForPrompt,
   formatNoCalendarConnectedPrompt,
 } from "@/lib/format-calendar-for-prompt";
+import { MOCK_CONNECTIONS } from "@/lib/data";
+import {
+  effectiveMockQueryRange,
+  getMockFilteredEventsForTool,
+  mockEventsToBusyBlocks,
+  resolveMockCalendarId,
+} from "@/lib/mock-calendar-agent";
 
 function parseSchedulingParticipants(raw: unknown): SchedulingParticipant[] {
   if (!Array.isArray(raw)) return [];
@@ -215,6 +223,21 @@ No user id in session — cannot load calendar.`;
     "chars",
   );
 
+  let timeZoneForMock = "America/Los_Angeles";
+  try {
+    const userSnap = await collection("users").doc(currentUserId).get();
+    const t = userSnap.data()?.timezone;
+    if (typeof t === "string" && t.trim()) timeZoneForMock = t.trim();
+  } catch {
+    /* keep default */
+  }
+
+  const mockNetworkCalendarsBlock = formatMockNetworkCalendarsForPrompt(
+    timeZoneForMock,
+    Date.now(),
+    { omitUserIds: [] },
+  );
+
   const schedulingBlock =
     schedulingParticipants.length > 0
       ? `
@@ -240,11 +263,13 @@ The logged-in user's ID is: ${currentUserId ?? "(unknown)"}
 IMPORTANT: Today's date is ${new Date().toISOString().split("T")[0]}.
 
 ${userCalendarData}
+${mockNetworkCalendarsBlock}
 
 On your first message, introduce yourself briefly. Then:
 - Keep responses brief and conversational
 - For the **current user's** schedule in the next ~7 days, rely on the **User's Google Calendar** and **Computed availability** sections above when present
 - **"When am I free?"** Use the **Free** gaps in **Computed availability** (timezone shown there). Never say you are "free all day" on a day that has any **Busy** interval or timed event. Do not invent free time inside a busy block.
+- For **Janet, Pete, Phil**, and other people in **Demo network calendars**, use the schedules above or call \`getSchedule\` / \`findOverlap\` with ids \`janet\`, \`pete\`, \`phil\` (or legacy \`user_janet\`, etc. — both work). Demo event dates are **Mar 15–29, 2026** (\`America/Los_Angeles\`).
 - When a user mentions meeting with someone specific, use your tools to find overlapping free times and suggest specific times
 - Call suggestTimes when you find good meeting times to display them interactively
 ${schedulingBlock}`;
@@ -313,12 +338,11 @@ ${schedulingBlock}`;
                 name: p.memberName || "Contact",
                 email: p.memberEmail,
               }))
-            : [
-                { id: "u1", name: "Alice Chen", email: "alice@example.com" },
-                { id: "u2", name: "Bob Park", email: "bob@example.com" },
-                { id: "u3", name: "Carmen Liu", email: "carmen@example.com" },
-                { id: "u4", name: "David Kim", email: "david@example.com" },
-              ];
+            : MOCK_CONNECTIONS.map((c) => ({
+                id: c.userId,
+                name: c.name,
+                email: c.email,
+              }));
           console.log("Returning friends:", friends);
           return friends;
         },
@@ -326,9 +350,9 @@ ${schedulingBlock}`;
 
       getSchedule: tool({
         description:
-          "Get calendar events and busy blocks for a date range from Google Calendar. The current user's next ~7 days are usually already in the system prompt — use this for other users or different ranges.",
+          "Get calendar events and busy blocks for a date range. For demo people use ids like janet, pete, phil, tommy (or user_janet, etc.). Otherwise uses Google Calendar when connected.",
         inputSchema: z.object({
-          userId: z.string().describe("The user ID to get schedule for (e.g., 'user_tommy')"),
+          userId: z.string().describe("User id: e.g. janet, user_janet, or a real Firebase uid"),
           startDate: z.string().describe("Start date in YYYY-MM-DD format"),
           endDate: z.string().describe("End date in YYYY-MM-DD format"),
         }),
@@ -336,6 +360,31 @@ ${schedulingBlock}`;
           try {
             console.log("[getSchedule] Fetching calendar for userId:", userId);
             console.log("[getSchedule] Date range:", startDate, "to", endDate);
+
+            if (resolveMockCalendarId(userId)) {
+              const {
+                canonicalId,
+                events: inRange,
+                note,
+                usedDemoDateFallback,
+              } = getMockFilteredEventsForTool(userId, startDate, endDate);
+              const busyBlocks = mockEventsToBusyBlocks(inRange);
+              const eventSummaries = inRange.map((e) => ({
+                title: e.title || "Busy",
+                start: e.start,
+                end: e.end,
+              }));
+              return {
+                userId: canonicalId,
+                queriedAs: userId,
+                events: eventSummaries,
+                busyBlocks,
+                totalEvents: inRange.length,
+                source: "mock",
+                message: note,
+                usedDemoDateFallback,
+              };
+            }
 
             // Get calendar account
             const accountsSnapshot = await collection("users")
@@ -474,13 +523,13 @@ ${schedulingBlock}`;
 
       findOverlap: tool({
         description:
-          "Find overlapping free time slots between multiple users for a meeting using their real Google Calendar data",
+          "Find overlapping free time slots. Demo people: janet, pete, phil, tommy, etc. (see system prompt) or Google Calendar for real accounts.",
         inputSchema: z.object({
           userIds: z
             .array(z.string())
             .default([])
             .describe(
-              "User IDs to check. Omit or pass [] when the user already chose people from Add network — their IDs will be applied automatically.",
+              "User IDs to check. Omit or pass [] when the user already picked people via the /network command — their IDs will be applied automatically.",
             ),
           startDate: z.string().describe("Start date in YYYY-MM-DD format"),
           endDate: z.string().describe("End date in YYYY-MM-DD format"),
@@ -504,7 +553,7 @@ ${schedulingBlock}`;
                 searchedUsers: [],
                 duration: durationMinutes,
                 error:
-                  "No participants selected. The user should choose people from their network (Add network) before finding overlap.",
+                  "No participants selected. The user should type /network in chat to pick people before finding overlap.",
               };
             }
 
@@ -513,6 +562,25 @@ ${schedulingBlock}`;
 
             for (const userId of resolvedUserIds) {
               try {
+                if (resolveMockCalendarId(userId)) {
+                  const eff = effectiveMockQueryRange(startDate, endDate);
+                  const winStart = new Date(`${eff.start}T00:00:00`);
+                  const winEnd = new Date(`${eff.end}T23:59:59.999`);
+                  const { events: inRange } = getMockFilteredEventsForTool(
+                    userId,
+                    startDate,
+                    endDate,
+                  );
+                  const busyBlocks = mockEventsToBusyBlocks(inRange);
+                  const freeWindows = calculateFreeWindows(
+                    busyBlocks,
+                    winStart,
+                    winEnd,
+                  );
+                  userAvailability.set(userId, freeWindows);
+                  continue;
+                }
+
                 // Get calendar account
                 const accountsSnapshot = await collection("users")
                   .doc(userId)

@@ -47,22 +47,18 @@ export async function POST(req: Request) {
   }
 
   const result = streamText({
-    model: google(process.env.GEMINI_MODEL || "gemini-2.5-flash"),
+    // Use stable model names: gemini-2.0-flash-lite-preview-02-05 or gemini-1.5-flash
+    model: google(process.env.GEMINI_MODEL || "gemini-2.0-flash-lite-preview-02-05"),
     system: `You are Chat2meet Agent, a smart scheduling assistant.
 Help users find times to meet with their friends and colleagues.
 
-If the user is in onboarding mode (based on context or first message), guide them through:
-1. Connecting Google Calendar
-2. Setting Public Preferences
-3. Setting Private Preferences
-
-Otherwise, focus on scheduling.
-
 On your first message, introduce yourself briefly. Then:
 - Keep responses brief and conversational
-- When a user mentions wanting to meet with someone specific, use your tools to find overlapping free times and suggest specific times without asking lots of follow-up questions
-- Call suggestTimes when you find good meeting times to display them interactively
-- Use getMySchedule to check the user's real Google Calendar events before suggesting times
+- When a user wants to schedule a meeting, immediately call findFreeSlots to find available times in their calendar. Do NOT say you can't check their calendar — you CAN.
+- After finding free slots, call suggestTimes to display them interactively
+- Use getMySchedule if the user asks about specific events or what they have scheduled
+- If findFreeSlots returns free slots, suggest the best ones — don't tell the user there's no availability unless totalFound is 0
+- Default to 30-minute meetings and the current/next week unless the user specifies otherwise
 
 Today's date is ${new Date().toISOString().split("T")[0]}.${privatePrefs}`,
     messages: await convertToModelMessages(messages),
@@ -110,14 +106,15 @@ Today's date is ${new Date().toISOString().split("T")[0]}.${privatePrefs}`,
             return { error: "User not authenticated", events: [] };
           }
           try {
+            // Append Z or time offset for RFC3339 compliance
             const events = await fetchUserCalendarEvents(
               currentUserId,
-              new Date(startDate).toISOString(),
-              new Date(endDate + "T23:59:59").toISOString(),
+              new Date(startDate + "T00:00:00Z").toISOString(),
+              new Date(endDate + "T23:59:59Z").toISOString(),
               50,
             );
             if (!events) {
-              return { error: "Google Calendar not connected. Ask the user to connect their calendar in Settings.", events: [] };
+              return { error: "Google Calendar not connected. Tell the user: 'I noticed your Google Calendar is not connected. Can you click Connect in your settings so I can check your real schedule?'", events: [] };
             }
             return {
               events: events.map(e => ({
@@ -125,7 +122,6 @@ Today's date is ${new Date().toISOString().split("T")[0]}.${privatePrefs}`,
                 start: e.start,
                 end: e.end,
                 location: e.location,
-                attendees: e.attendees,
               })),
             };
           } catch (err) {
@@ -152,17 +148,17 @@ Today's date is ${new Date().toISOString().split("T")[0]}.${privatePrefs}`,
             return { error: "User not authenticated", freeSlots: [] };
           }
           try {
+            // Append Z for RFC3339 compliance
             const events = await fetchUserCalendarEvents(
               currentUserId,
-              new Date(startDate).toISOString(),
-              new Date(endDate + "T23:59:59").toISOString(),
-              100,
+              startDate + "T00:00:00Z",
+              endDate + "T23:59:59Z",
+              200,
             );
             if (!events) {
-              return { error: "Google Calendar not connected", freeSlots: [] };
+              return { error: "Google Calendar not connected. Tell the user: 'I noticed your Google Calendar is not connected. Can you click Connect in your settings so I can check your real schedule?'", freeSlots: [] };
             }
 
-            // Build busy blocks
             const busyBlocks = events
               .filter(e => e.start && e.end)
               .map(e => ({
@@ -170,25 +166,23 @@ Today's date is ${new Date().toISOString().split("T")[0]}.${privatePrefs}`,
                 end: new Date(e.end).getTime(),
               }));
 
-            // Find free slots day by day
-            const freeSlots: Array<{ start: string; end: string; date: string }> = [];
-            const start = new Date(startDate);
-            const end = new Date(endDate);
+            const [sY, sM, sD] = startDate.split("-").map(Number);
+            const [eY, eM, eD] = endDate.split("-").map(Number);
+            const startLocal = new Date(sY, sM - 1, sD);
+            const endLocal = new Date(eY, eM - 1, eD);
 
-            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-              // Skip weekends
+            const freeSlots: Array<{ start: string; end: string; date: string }> = [];
+
+            for (let d = new Date(startLocal); d <= endLocal; d.setDate(d.getDate() + 1)) {
               if (d.getDay() === 0 || d.getDay() === 6) continue;
 
               for (let h = startHour; h < endHour; h++) {
                 for (const m of [0, 30]) {
-                  const slotStart = new Date(d);
-                  slotStart.setHours(h, m, 0, 0);
+                  const slotStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), h, m, 0);
                   const slotEnd = new Date(slotStart.getTime() + durationMinutes * 60000);
 
-                  // Check slot doesn't exceed work hours
                   if (slotEnd.getHours() > endHour || (slotEnd.getHours() === endHour && slotEnd.getMinutes() > 0)) continue;
 
-                  // Check slot doesn't overlap any busy block
                   const slotStartMs = slotStart.getTime();
                   const slotEndMs = slotEnd.getTime();
                   const isBusy = busyBlocks.some(
@@ -206,7 +200,7 @@ Today's date is ${new Date().toISOString().split("T")[0]}.${privatePrefs}`,
               }
             }
 
-            return { freeSlots, totalFound: freeSlots.length };
+            return { freeSlots: freeSlots.slice(0, 20), totalFound: freeSlots.length };
           } catch (err) {
             console.error("Failed to find free slots:", err);
             return { error: "Failed to compute free slots", freeSlots: [] };

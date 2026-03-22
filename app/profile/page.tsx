@@ -34,8 +34,18 @@ export default function ProfilePage() {
   const [privateStatement, setPrivateStatement] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [calendarUrl, setCalendarUrl] = useState<string | null>(null);
+
+  // Fetch calendar auth URL
+  useEffect(() => {
+    fetch("/api/calendar/google/auth-url")
+      .then((res) => res.json())
+      .then((data) => setCalendarUrl(data.url))
+      .catch((err) => console.error("Error fetching calendar URL:", err));
+  }, []);
 
   useEffect(() => {
+
     if (authLoading) return;
     if (!user) {
       router.push("/login");
@@ -146,15 +156,24 @@ export default function ProfilePage() {
                     {profile?.timezone || "Not set"}
                   </p>
                 </div>
-                <div>
+                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
                     Calendar
                   </p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <div className={`h-2 w-2 rounded-full ${profile?.calendarConnected ? "bg-[var(--accent-primary)]" : "bg-[var(--text-tertiary)]"}`} />
-                    <p className="text-sm text-[var(--text-secondary)]">
-                      {profile?.calendarConnected ? "Connected" : "Not connected"}
-                    </p>
+                  <div className="mt-2 flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <div className={`h-2 w-2 rounded-full ${profile?.calendarConnected ? "bg-[var(--accent-primary)]" : "bg-[var(--text-tertiary)]"}`} />
+                      <p className="text-sm text-[var(--text-secondary)]">
+                        {profile?.calendarConnected ? "Connected" : "Not connected"}
+                      </p>
+                    </div>
+                    {!profile?.calendarConnected && calendarUrl && (
+                      <a href={calendarUrl}>
+                        <Button variant="secondary" size="sm" className="h-8 px-3 text-xs">
+                          Connect Google Calendar
+                        </Button>
+                      </a>
+                    )}
                   </div>
                 </div>
               </div>

@@ -31,6 +31,17 @@ export function AvailabilityGrid({ timePosition = "left" }: AvailabilityGridProp
   const [loading, setLoading] = useState(false);
   const paintModeRef = useRef<boolean>(true); // true = adding, false = removing
   const gridRef = useRef<HTMLDivElement>(null);
+  const [isCalendarConnected, setIsCalendarConnected] = useState(true);
+  const [calendarUrl, setCalendarUrl] = useState<string | null>(null);
+
+  // Fetch calendar auth URL if needed
+  useEffect(() => {
+    fetch("/api/calendar/google/auth-url")
+      .then((res) => res.json())
+      .then((data) => setCalendarUrl(data.url))
+      .catch((err) => console.error("Error fetching calendar URL:", err));
+  }, []);
+
 
   // Fetch initial selected and busy slots
   useEffect(() => {
@@ -49,11 +60,15 @@ export function AvailabilityGrid({ timePosition = "left" }: AvailabilityGridProp
         // Fetch Google Calendar events for context
         const timeMin = "2026-03-23T00:00:00Z";
         const timeMax = "2026-03-29T23:59:59Z";
-        const calRes = await fetch(`/api/calendar/google/events?userId=${user?.uid}&timeMin=${timeMin}&timeMax=${timeMax}`);
+         const calRes = await fetch(`/api/calendar/google/events?userId=${user?.uid}&timeMin=${timeMin}&timeMax=${timeMax}`);
         const calData = await calRes.json();
         
-        if (calData.success && calData.events) {
+        if (calData.error === "Calendar not connected") {
+          setIsCalendarConnected(false);
+        } else if (calData.success && calData.events) {
+          setIsCalendarConnected(true);
           const newBusy = new Set<CellKey>();
+
           calData.events.forEach((event: CalendarEvent) => {
             const start = new Date(event.start);
             const end = new Date(event.end);
@@ -284,10 +299,37 @@ export function AvailabilityGrid({ timePosition = "left" }: AvailabilityGridProp
                   {timePosition === "right" && <TimeColumn time={time} isHour={isHour} />}
                 </tr>
               );
-            })}
+             })}
           </tbody>
         </table>
+
+        {!isCalendarConnected && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-[var(--bg-primary)]/40 px-6 backdrop-blur-[2px]">
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-sheet)] p-6 text-center shadow-[var(--shadow-elevated)] max-w-[280px]">
+              <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--bubble-action)] text-[var(--accent-primary)]">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="2" />
+                  <path d="M3 9h18M8 2v4M16 2v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              </div>
+              <p className="text-xs font-semibold text-[var(--text-primary)] mb-1">Calendar not connected</p>
+              <p className="text-[10px] text-[var(--text-tertiary)] mb-4">
+                Connect your Google Calendar to see your real busy times here.
+              </p>
+              {calendarUrl ? (
+                <a href={calendarUrl}>
+                  <button className="w-full rounded-lg bg-[var(--accent-primary)] py-2 text-[11px] font-semibold text-white hover:opacity-90 transition-opacity">
+                    Connect Now
+                  </button>
+                </a>
+              ) : (
+                <div className="text-[10px] text-[var(--text-tertiary)]">Loading...</div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
+
       <style jsx>{`
         .custom-scrollbar::-webkit-scrollbar {
           width: 4px;

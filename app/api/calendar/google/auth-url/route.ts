@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
+import { GOOGLE_OAUTH_SCOPES } from "@/lib/google-calendar";
 
 // GET /api/calendar/google/auth-url
 // Generate Google OAuth URL for calendar access
@@ -11,15 +12,10 @@ export async function GET() {
       process.env.OAUTH_REDIRECT_URI
     );
 
-    const scopes = [
-      "https://www.googleapis.com/auth/calendar.events",
-      "https://www.googleapis.com/auth/userinfo.email", // Get user email
-    ];
-
     const url = oauth2Client.generateAuthUrl({
-      access_type: "offline", // Get refresh token
-      prompt: "consent", // Force consent screen to ensure refresh token
-      scope: scopes,
+      access_type: "offline",
+      prompt: "consent",
+      scope: GOOGLE_OAUTH_SCOPES,
     });
 
     return NextResponse.json({ url });

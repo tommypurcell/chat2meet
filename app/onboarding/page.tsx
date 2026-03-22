@@ -98,7 +98,14 @@ export default function OnboardingPage() {
                 </p>
                 <div className="flex flex-col gap-2">
                   {calendarUrl ? (
-                    <a href={calendarUrl}>
+                    <a
+                      href={calendarUrl}
+                      onClick={() => {
+                        if (user?.uid) {
+                          sessionStorage.setItem("connectingUserId", user.uid);
+                        }
+                      }}
+                    >
                       <Button variant="primary" className="w-full">Connect Now</Button>
                     </a>
                   ) : (

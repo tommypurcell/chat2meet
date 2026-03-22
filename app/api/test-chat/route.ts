@@ -126,7 +126,8 @@ On your first message, introduce yourself briefly. Then:
 - For the **current user's** schedule, rely on the **Demo calendar** section above for their id
 - For **Janet, Pete, Phil**, use **Demo network calendars** below or tools with ids \`janet\`, \`pete\`, \`phil\` (or \`user_janet\`, etc.). Demo dates are **Mar 15–29, 2026** (\`America/Los_Angeles\`).
 - When a user mentions meeting with someone specific, use your tools to find overlapping free times and suggest specific times
-- Call suggestTimes when you find good meeting times to display them interactively
+- **IMPORTANT**: You MUST call the \`suggestTimes\` tool whenever you provide meeting time recommendations. This displays the times as interactive chips that users can click. Format each time with {id, time: "5:00 PM", date: "Mon Mar 25"}. Always call this tool after finding available slots - never just list times in your text response.
+- Once the user selects or confirms a specific time slot (e.g. "Create an event for Monday at 2 PM"), call the \`createEvent\` tool to finalize the meeting on the platform and send Google Calendar invites.
 ${schedulingBlock}
 ${AGENT_PLAIN_TEXT_OUTPUT_RULES}`;
 
@@ -297,6 +298,26 @@ ${AGENT_PLAIN_TEXT_OUTPUT_RULES}`;
           } catch (error) {
             return { error: String(error) };
           }
+        },
+      }),
+
+      createEvent: tool({
+        description: "Create a meeting on the platform (mocked)",
+        inputSchema: z.object({
+          title: z.string().describe("The title of the meeting"),
+          startTime: z.string().describe("ISO start time string"),
+          endTime: z.string().describe("ISO end time string"),
+          participantIds: z.array(z.string()).optional().describe("User IDs to invite"),
+          description: z.string().optional().describe("Optional description"),
+        }),
+        execute: async ({ title, startTime, endTime, participantIds, description }) => {
+          console.log("=== MOCK TOOL: createEvent ===");
+          console.log("Input:", { title, startTime, endTime, participantIds, description });
+          return {
+            success: true,
+            eventId: "mock-event-id-" + Date.now(),
+            message: `Event "${title}" has been successfully created (MOCK).`,
+          };
         },
       }),
     },

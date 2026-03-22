@@ -274,7 +274,8 @@ On your first message, introduce yourself briefly. Then:
 - **"When am I free?"** Use the **Free** gaps in **Computed availability** (timezone shown there). Never say you are "free all day" on a day that has any **Busy** interval or timed event. Do not invent free time inside a busy block.
 - For **Janet, Pete, Phil**, and other people in **Demo network calendars**, use the schedules above or call \`getSchedule\` / \`findOverlap\` with ids \`janet\`, \`pete\`, \`phil\` (or legacy \`user_janet\`, etc. — both work). Demo event dates are **Mar 15–29, 2026** (\`America/Los_Angeles\`).
 - When a user mentions meeting with someone specific, use your tools to find overlapping free times and suggest specific times
-- Call suggestTimes when you find good meeting times to display them interactively
+- **IMPORTANT**: You MUST call the \`suggestTimes\` tool whenever you provide meeting time recommendations. This displays the times as interactive chips that users can click. Format each time with {id, time: "5:00 PM", date: "Mon Mar 25"}. Always call this tool after finding available slots - never just list times in your text response.
+- Once the user selects or confirms a specific time slot (e.g. "Create an event for Monday at 2 PM"), call the \`createEvent\` tool to finalize the meeting on the platform and send Google Calendar invites.
 ${schedulingBlock}
 ${AGENT_PLAIN_TEXT_OUTPUT_RULES}`;
 
@@ -698,6 +699,134 @@ ${AGENT_PLAIN_TEXT_OUTPUT_RULES}`;
             console.log("=== TOOL ERROR: findOverlap ===");
             console.log(JSON.stringify(errorResult, null, 2));
             return errorResult;
+          }
+        },
+      }),
+
+      createEvent: tool({
+        description: "Create a meeting on the platform and send Google Calendar invites to all participants",
+        inputSchema: z.object({
+          title: z.string().describe("The title of the meeting"),
+          startTime: z.string().describe("ISO start time string"),
+          endTime: z.string().describe("ISO end time string"),
+          participantIds: z.array(z.string()).optional().describe("User IDs to invite (optional, defaults to current scheduling set)"),
+          description: z.string().optional().describe("Optional description for the meeting"),
+        }),
+        execute: async ({ title, startTime, endTime, participantIds, description }) => {
+          try {
+            console.log("=== TOOL: createEvent ===");
+            console.log("Input:", { title, startTime, endTime, participantIds, description });
+
+            const resolvedIds = participantIds || schedulingParticipants.map(p => p.memberUserId);
+            if (!resolvedIds.includes(currentUserId)) {
+              resolvedIds.push(currentUserId);
+            }
+
+            // 1. Create in Firestore
+            const newEvent = {
+              title,
+              createdBy: currentUserId,
+              participantIds: resolvedIds,
+              dateRangeStart: startTime, // We reuse these fields for simplicity
+              dateRangeEnd: endTime,
+              durationMinutes: (new Date(endTime).getTime() - new Date(startTime).getTime()) / (1000 * 60),
+              timezone: userTimeZone,
+              status: "confirmed",
+              finalizedSlot: { start: startTime, end: endTime },
+              description: description || "",
+              ...timestamps(),
+            };
+
+            const docRef = await collection("events").add(newEvent);
+            console.log("[createEvent] Saved to Firestore:", docRef.id);
+
+            // 2. Sync to Google Calendar for the creator
+            let googleEventId = null;
+            let googleLink = null;
+            let syncError = null;
+
+            try {
+              console.log("[createEvent] Attempting Google Calendar sync for user:", currentUserId);
+              const accountsSnapshot = await collection("users")
+                .doc(currentUserId)
+                .collection("calendarAccounts")
+                .where("provider", "==", "google")
+                .where("isActive", "==", true)
+                .limit(1)
+                .get();
+
+              if (!accountsSnapshot.empty) {
+                const accountDoc = accountsSnapshot.docs[0];
+                const accountData = accountDoc.data();
+                const oauth2Client = new googleApis.auth.OAuth2(
+                  process.env.GOOGLE_CLIENT_ID,
+                  process.env.GOOGLE_CLIENT_SECRET,
+                  process.env.OAUTH_REDIRECT_URI
+                );
+
+                oauth2Client.setCredentials({
+                  access_token: decrypt(accountData.accessToken),
+                  refresh_token: accountData.refreshToken ? decrypt(accountData.refreshToken) : null,
+                });
+
+                const calendar = googleApis.calendar({ version: "v3", auth: oauth2Client });
+                
+                // Prepare attendees - resolve emails from schedulingParticipants OR MOCK_CONNECTIONS
+                const attendees = resolvedIds
+                  .filter(id => id !== currentUserId)
+                  .map(id => {
+                    const p = schedulingParticipants.find(sp => sp.memberUserId === id);
+                    if (p) return { email: p.memberEmail, displayName: p.memberName };
+                    const mc = MOCK_CONNECTIONS.find(c => c.userId === id);
+                    if (mc) return { email: mc.email, displayName: mc.name };
+                    return null;
+                  })
+                  .filter((a): a is { email: string; displayName: string } => a !== null);
+
+                console.log("[createEvent] Resolved attendees for Google:", attendees);
+
+                const gResponse = await calendar.events.insert({
+                  calendarId: "primary",
+                  sendUpdates: "all",
+                  requestBody: {
+                    summary: title,
+                    description: description || `Scheduled via When2Meet Agent. Event ID: ${docRef.id}`,
+                    start: { dateTime: startTime },
+                    end: { dateTime: endTime },
+                    attendees: attendees.length > 0 ? attendees : undefined,
+                  },
+                });
+
+                googleEventId = gResponse.data.id;
+                googleLink = gResponse.data.htmlLink;
+                console.log("[createEvent] Created on Google Calendar:", googleEventId);
+              } else {
+                console.log("[createEvent] No active Google Calendar account found for sync.");
+              }
+            } catch (gError) {
+              syncError = gError instanceof Error ? gError.message : "Unknown sync error";
+              console.error("[createEvent] Failed to sync with Google Calendar:", gError);
+            }
+
+            const message = googleEventId
+              ? `Event "${title}" has been created successfully and added to your Google Calendar.`
+              : syncError
+                ? `Event "${title}" was created on the platform, but syncing to Google Calendar failed: ${syncError}`
+                : `Event "${title}" was created on the platform, but your Google Calendar is not connected.`;
+
+            return {
+              success: true,
+              eventId: docRef.id,
+              googleEventId,
+              googleLink,
+              message,
+            };
+          } catch (error) {
+            console.error("Error in createEvent tool:", error);
+            return {
+              success: false,
+              error: error instanceof Error ? error.message : "Unknown error",
+            };
           }
         },
       }),

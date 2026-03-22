@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { NetworkPickerModal } from "@/components/network/NetworkPickerModal";
 import { useAuth } from "@/lib/auth-context";
-import { saveSchedulingParticipants } from "@/lib/scheduling-storage";
 import { Button } from "@/components/ui/Button";
 
 export default function AddNetworkPage() {
@@ -23,7 +22,7 @@ export default function AddNetworkPage() {
     return (
       <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-[var(--bg-primary)] px-6 text-center">
         <p className="text-sm text-[var(--text-secondary)]">
-          Sign in to load your network and pick who you are scheduling with.
+          Sign in to view your network.
         </p>
         <Link href="/login?returnTo=/addnetwork">
           <Button variant="primary">Sign in</Button>
@@ -43,10 +42,6 @@ export default function AddNetworkPage() {
         open
         ownerUserId={user.uid}
         onClose={() => router.push("/")}
-        onConfirm={(selected) => {
-          saveSchedulingParticipants(selected);
-          router.push("/");
-        }}
       />
     </div>
   );

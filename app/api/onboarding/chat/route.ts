@@ -31,7 +31,7 @@ export async function POST(req: Request) {
   }
 
   const result = streamText({
-    model: google(process.env.GEMINI_MODEL || "gemini-2.5-flash"),
+    model: google(process.env.GEMINI_MODEL || "gemini-3-flash-preview"),
     system: `You are the Chat2meet onboarding assistant. Your job is to welcome a new user and help them set up their account through a friendly, conversational flow.
 
 The user's name is: ${userName}

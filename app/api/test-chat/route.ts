@@ -126,7 +126,7 @@ ${schedulingBlock}
 ${AGENT_PLAIN_TEXT_OUTPUT_RULES}`;
 
   const result = streamText({
-    model: google("gemini-2.5-flash-lite"),
+    model: google("gemini-3-flash-preview"),
     system: systemPrompt,
     messages: await convertToModelMessages(messages),
     stopWhen: stepCountIs(5),
@@ -224,7 +224,7 @@ ${AGENT_PLAIN_TEXT_OUTPUT_RULES}`;
             .array(z.string())
             .default([])
             .describe(
-              "User IDs to check. Omit or pass [] when the user already picked people via the /network command — their IDs will be applied automatically.",
+              "User IDs to check. Omit or pass [] when scheduling participants are already set in the app — their IDs will be applied automatically.",
             ),
           startDate: z.string().describe("Start date in YYYY-MM-DD format"),
           endDate: z.string().describe("End date in YYYY-MM-DD format"),
@@ -244,7 +244,10 @@ ${AGENT_PLAIN_TEXT_OUTPUT_RULES}`;
                 : schedulingParticipants.map((p) => p.memberUserId);
 
             if (resolvedUserIds.length === 0) {
-              return { error: "No participants selected." };
+              return {
+                error:
+                  "No participants selected for overlap. Ask the user who should be included (names or user ids from the demo network in the system prompt), or ensure scheduling participants are set in the app.",
+              };
             }
 
             const userAvailability = new Map();

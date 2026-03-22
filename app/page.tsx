@@ -34,7 +34,7 @@ import {
   formatCalendarLoadErrorPrompt,
   formatNoCalendarConnectedPrompt,
 } from "@/lib/format-calendar-for-prompt";
-import { cn } from "@/lib/utils";
+import { cn, mergeUiMessageTextParts } from "@/lib/utils";
 import {
   CHAT_SUGGESTIONS,
   MEETING_GROUPS,
@@ -139,17 +139,10 @@ function ChatContent({
       ) : (
         messages.map((msg) => (
           <ChatMessage key={msg.id} role={msg.role}>
-            {msg.parts
-              ?.map((part: any, i: number) => {
-                if (part.type === "text")
-                  return (
-                    <span key={i} className="whitespace-pre-wrap">
-                      {part.text}
-                    </span>
-                  );
-                return null;
-              })
-              .filter(Boolean) || msg.content}
+            <span className="whitespace-pre-wrap">
+              {mergeUiMessageTextParts(msg.parts) ||
+                (typeof msg.content === "string" ? msg.content : "")}
+            </span>
           </ChatMessage>
         ))
       )}
@@ -629,7 +622,7 @@ export default function Home() {
           />
           <ChatInput
             onSend={handleSendMessage}
-            placeholder="Message… type /network to pick people"
+            placeholder="Message… type /network to view your network"
           />
         </div>
 
@@ -793,7 +786,7 @@ export default function Home() {
             participants={schedulingParticipants}
             onRemove={handleRemoveParticipant}
           />
-          <ChatInput onSend={handleSendMessage} placeholder="Message… type /network to pick people" />
+          <ChatInput onSend={handleSendMessage} placeholder="Message… type /network to view your network" />
         </div>
       </div>
 
@@ -926,7 +919,7 @@ export default function Home() {
           participants={schedulingParticipants}
           onRemove={handleRemoveParticipant}
         />
-        <ChatInput onSend={handleSendMessage} placeholder="Message… type /network to pick people" />
+        <ChatInput onSend={handleSendMessage} placeholder="Message… type /network to view your network" />
       </div>
 
       {user?.uid ? (
@@ -934,10 +927,6 @@ export default function Home() {
           open={networkPickerOpen}
           ownerUserId={user.uid}
           onClose={() => setNetworkPickerOpen(false)}
-          onConfirm={(selected) => {
-            setSchedulingParticipants(selected);
-            setNetworkPickerOpen(false);
-          }}
         />
       ) : null}
     </div>

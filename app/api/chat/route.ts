@@ -255,7 +255,7 @@ Rules:
 `
       : "";
 
-  const systemPrompt = `You are When2Meet Agent, a smart scheduling assistant.
+  const systemPrompt = `You are Chat2Meet Agent, a smart scheduling assistant.
 Help users find times to meet with their friends and colleagues.
 
 ## Current User
@@ -282,7 +282,7 @@ ${AGENT_PLAIN_TEXT_OUTPUT_RULES}`;
   console.log(JSON.stringify(messages, null, 2));
 
   const result = streamText({
-    model: google("gemini-2.5-flash-lite"),
+    model: google("gemini-3-flash-preview"),
     system: systemPrompt,
     messages: await convertToModelMessages(messages),
     stopWhen: stepCountIs(5),
@@ -531,7 +531,7 @@ ${AGENT_PLAIN_TEXT_OUTPUT_RULES}`;
             .array(z.string())
             .default([])
             .describe(
-              "User IDs to check. Omit or pass [] when the user already picked people via the /network command — their IDs will be applied automatically.",
+              "User IDs to check. Omit or pass [] when scheduling participants are already set in the app — their IDs will be applied automatically.",
             ),
           startDate: z.string().describe("Start date in YYYY-MM-DD format"),
           endDate: z.string().describe("End date in YYYY-MM-DD format"),
@@ -555,7 +555,7 @@ ${AGENT_PLAIN_TEXT_OUTPUT_RULES}`;
                 searchedUsers: [],
                 duration: durationMinutes,
                 error:
-                  "No participants selected. The user should type /network in chat to pick people before finding overlap.",
+                  "No participants selected for overlap. Ask the user who should be included (names or user ids from the demo network in the system prompt), or ensure scheduling participants are set in the app.",
               };
             }
 

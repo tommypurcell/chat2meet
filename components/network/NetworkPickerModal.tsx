@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
-import type { SchedulingParticipant } from "@/lib/types";
 import { MOCK_CONNECTIONS } from "@/lib/data";
 
 type ConnectionRow = {
@@ -18,22 +17,18 @@ type ConnectionRow = {
 export type NetworkPickerModalProps = {
   open: boolean;
   onClose: () => void;
-  /** Called when user confirms; parent persists and navigates */
-  onConfirm: (selected: SchedulingParticipant[]) => void;
   ownerUserId: string;
 };
 
 export function NetworkPickerModal({
   open,
   onClose,
-  onConfirm,
-  ownerUserId,
+  ownerUserId: _ownerUserId,
 }: NetworkPickerModalProps) {
   const titleId = useId();
   const [connections, setConnections] = useState<ConnectionRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!open) return;
@@ -46,20 +41,20 @@ export function NetworkPickerModal({
 
   useEffect(() => {
     if (!open) return;
-    
+
     setLoading(true);
     setError(null);
-    setSelected(new Set());
 
-    // Simulate async mock load
     const timeout = setTimeout(() => {
-      const accepted = MOCK_CONNECTIONS.filter(c => c.status === "accepted");
-      setConnections(accepted.map(c => ({
-        id: c.id,
-        memberUserId: c.userId,
-        memberName: c.name,
-        memberEmail: c.email
-      })));
+      const accepted = MOCK_CONNECTIONS.filter((c) => c.status === "accepted");
+      setConnections(
+        accepted.map((c) => ({
+          id: c.id,
+          memberUserId: c.userId,
+          memberName: c.name,
+          memberEmail: c.email,
+        })),
+      );
       setLoading(false);
     }, 400);
 
@@ -67,28 +62,6 @@ export function NetworkPickerModal({
   }, [open]);
 
   if (!open) return null;
-
-  function toggle(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  function confirm() {
-    const picked = connections
-      .filter((c) => selected.has(c.memberUserId))
-      .map(
-        (c): SchedulingParticipant => ({
-          memberUserId: c.memberUserId,
-          memberName: c.memberName,
-          memberEmail: c.memberEmail,
-        }),
-      );
-    onConfirm(picked);
-  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -112,11 +85,11 @@ export function NetworkPickerModal({
             id={titleId}
             className="text-base font-semibold text-[var(--text-primary)]"
           >
-            Who are you scheduling with?
+            Your network
           </h2>
           <p className="mt-1 text-[13px] text-[var(--text-tertiary)]">
-            Choose people from your network. Their account IDs are sent to the
-            assistant automatically — you will not need to paste user IDs.
+            People you are connected with. View only — this does not change
+            scheduling.
           </p>
         </div>
 
@@ -146,72 +119,27 @@ export function NetworkPickerModal({
           )}
           {!loading &&
             !error &&
-            connections.map((c) => {
-              const isOn = selected.has(c.memberUserId);
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => toggle(c.memberUserId)}
-                  className={cn(
-                    "mb-2 flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition-colors",
-                    isOn
-                      ? "border-[var(--accent-primary)] bg-[var(--bg-tertiary)]"
-                      : "border-[var(--border)] hover:bg-[var(--bg-tertiary)]",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "flex h-5 w-5 shrink-0 items-center justify-center rounded border",
-                      isOn
-                        ? "border-[var(--accent-primary)] bg-[var(--accent-primary)]"
-                        : "border-[var(--divider)] bg-[var(--bg-primary)]",
-                    )}
-                    aria-hidden
-                  >
-                    {isOn && (
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 12 12"
-                        fill="none"
-                        className="text-white"
-                      >
-                        <path
-                          d="M2 6l3 3 5-6"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    )}
-                  </span>
-                  <Avatar name={c.memberName} size={40} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-[var(--text-primary)]">
-                      {c.memberName}
-                    </p>
-                    <p className="truncate text-xs text-[var(--text-tertiary)]">
-                      {c.memberEmail}
-                    </p>
-                  </div>
-                </button>
-              );
-            })}
+            connections.map((c) => (
+              <div
+                key={c.id}
+                className="mb-2 flex w-full items-center gap-3 rounded-xl border border-[var(--border)] px-3 py-3"
+              >
+                <Avatar name={c.memberName} size={40} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-[var(--text-primary)]">
+                    {c.memberName}
+                  </p>
+                  <p className="truncate text-xs text-[var(--text-tertiary)]">
+                    {c.memberEmail}
+                  </p>
+                </div>
+              </div>
+            ))}
         </div>
 
-        <div className="shrink-0 flex justify-end gap-2 border-t border-[var(--divider)] p-4">
-          <Button type="button" variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            variant="primary"
-            onClick={confirm}
-            disabled={selected.size === 0 || loading}
-          >
-            Use selected
+        <div className="shrink-0 flex justify-end border-t border-[var(--divider)] p-4">
+          <Button type="button" variant="primary" onClick={onClose}>
+            Close
           </Button>
         </div>
       </div>

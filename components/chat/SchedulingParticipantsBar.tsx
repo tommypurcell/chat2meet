@@ -24,8 +24,7 @@ export function SchedulingParticipantsBar({
       </span>
       {participants.length === 0 ? (
         <span className="text-xs text-[var(--text-tertiary)]">
-          Type <span className="font-mono text-[var(--text-secondary)]">/network</span> in chat
-          to pick people
+          No one selected for scheduling in this session.
         </span>
       ) : (
         <>
@@ -52,9 +51,6 @@ export function SchedulingParticipantsBar({
               </button>
             </span>
           ))}
-          <span className="text-xs text-[var(--text-tertiary)]">
-            <span className="font-mono text-[var(--text-secondary)]">/network</span> to change
-          </span>
         </>
       )}
     </div>

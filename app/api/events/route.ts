@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { collection, timestamps, errorResponse, successResponse } from "@/lib/api-helpers";
+import { publicEventUrl } from "@/lib/event-url";
 
 // POST /api/events - Create an event
 export async function POST(request: NextRequest) {
@@ -9,6 +10,9 @@ export async function POST(request: NextRequest) {
     if (!body.title || !body.createdBy || !body.dateRangeStart || !body.dateRangeEnd || !body.durationMinutes) {
       return errorResponse("title, createdBy, dateRangeStart, dateRangeEnd, and durationMinutes are required", 400);
     }
+
+    const docRef = collection("events").doc();
+    const shareUrl = publicEventUrl(docRef.id);
 
     const newEvent = {
       title: body.title,
@@ -21,10 +25,11 @@ export async function POST(request: NextRequest) {
       status: body.status || "draft",
       bestSlot: body.bestSlot || null,
       finalizedSlot: body.finalizedSlot || null,
+      shareUrl,
       ...timestamps(),
     };
 
-    const docRef = await collection("events").add(newEvent);
+    await docRef.set(newEvent);
     const doc = await docRef.get();
 
     return successResponse({ id: doc.id, ...doc.data() }, 201);
@@ -50,7 +55,13 @@ export async function GET(request: NextRequest) {
       .limit(100); // Fetch more than needed, then filter
 
     const snapshot = await query.get();
-    let events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    let events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Array<{
+      id: string;
+      participantIds?: string[];
+      createdBy?: string;
+      status?: string;
+      [key: string]: unknown;
+    }>;
 
     // Filter in memory
     if (userId) {

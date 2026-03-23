@@ -102,11 +102,11 @@ async function exportFirestore() {
     console.log(`  - Users: ${data.users.length}`);
 
     // Count calendar accounts
-    const totalAccounts = data.users.reduce((sum, user) => sum + user.calendarAccounts.length, 0);
+    const totalAccounts = data.users.reduce((sum: number, user: any) => sum + (user.calendarAccounts?.length || 0), 0);
     console.log(`  - Calendar Accounts: ${totalAccounts}`);
 
     // Count user network connections
-    const totalConnections = data.users.reduce((sum, user) => sum + user.network.length, 0);
+    const totalConnections = data.users.reduce((sum: number, user: any) => sum + (user.network?.length || 0), 0);
     console.log(`  - User Network Connections: ${totalConnections}`);
 
   } catch (error) {

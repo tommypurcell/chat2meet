@@ -9,6 +9,7 @@ import { TimeChip } from "@/components/ui/TimeChip";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { ChatMessage } from "@/components/chat/ChatMessage";
+import { ChatMessageText } from "@/components/chat/ChatMessageText";
 import { ActionBubble } from "@/components/chat/ActionBubble";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { AvailabilityHeatmap } from "@/components/chat/AvailabilityHeatmap";
@@ -37,9 +38,11 @@ import {
 } from "@/lib/format-calendar-for-prompt";
 import {
   extractCreateEventResultsFromMessages,
+  extractGuestEventResultsFromMessages,
   extractSuggestedTimesFromMessages,
 } from "@/lib/chat-tool-outputs";
 import { calendarDateInTimeZone } from "@/lib/date-in-timezone";
+import { saveGuestSession } from "@/lib/guest-session";
 import { cn, mergeUiMessageTextParts } from "@/lib/utils";
 import {
   CHAT_SUGGESTIONS,
@@ -93,6 +96,17 @@ function InvitePreview({ onClose }: { onClose: () => void }) {
   );
 }
 
+function getChatMessageVisibleText(msg: {
+  parts?: unknown;
+  content?: unknown;
+}): string {
+  const merged = mergeUiMessageTextParts(
+    msg.parts as Parameters<typeof mergeUiMessageTextParts>[0],
+  );
+  const fromContent = typeof msg.content === "string" ? msg.content : "";
+  return (merged || fromContent).trim();
+}
+
 /* ── Chat content (messages + time slots + invite) ───── */
 function ChatContent({
   messages,
@@ -104,7 +118,7 @@ function ChatContent({
   onCloseInvite,
   onSuggestionClick,
 }: {
-  messages: any[];
+  messages: unknown[];
   isLoading: boolean;
   selectedSlot: string | null;
   showInvitePreview: boolean;
@@ -113,6 +127,14 @@ function ChatContent({
   onCloseInvite: () => void;
   onSuggestionClick?: (text: string) => void;
 }) {
+  const lastMsg = messages.length > 0 ? messages[messages.length - 1] : undefined;
+  const lastVisibleText = lastMsg ? getChatMessageVisibleText(lastMsg) : "";
+  const showTypingRow =
+    isLoading &&
+    (messages.length === 0 ||
+      (lastMsg as any)?.role === "user" ||
+      ((lastMsg as any)?.role === "assistant" && lastVisibleText === ""));
+
   return (
     <div>
       {messages.length === 0 && !isLoading ? (
@@ -135,21 +157,42 @@ function ChatContent({
         </div>
       ) : (
         <>
-          {messages.map((msg) => (
-            <ChatMessage key={msg.id} role={msg.role}>
-              <span className="whitespace-pre-wrap">
-                {mergeUiMessageTextParts(msg.parts) ||
-                  (typeof msg.content === "string" ? msg.content : "")}
-              </span>
-            </ChatMessage>
-          ))}
+          {messages.map((msg: any, index) => {
+            if (
+              msg.role === "assistant" &&
+              getChatMessageVisibleText(msg) === "" &&
+              isLoading &&
+              index === messages.length - 1
+            ) {
+              return null;
+            }
+            return (
+              <ChatMessage key={msg.id} role={msg.role}>
+                <ChatMessageText
+                  text={
+                    mergeUiMessageTextParts(msg.parts) ||
+                    (typeof msg.content === "string" ? msg.content : "")
+                  }
+                />
+              </ChatMessage>
+            );
+          })}
 
-          {isLoading && (
+          {showTypingRow && (
             <ChatMessage role="assistant">
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-[var(--text-tertiary)] rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                <div className="w-2 h-2 bg-[var(--text-tertiary)] rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                <div className="w-2 h-2 bg-[var(--text-tertiary)] rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+              <div className="flex h-[1.25em] items-center gap-1">
+                <div
+                  className="h-2 w-2 shrink-0 rounded-full bg-[var(--text-tertiary)] animate-bounce"
+                  style={{ animationDelay: "0ms" }}
+                />
+                <div
+                  className="h-2 w-2 shrink-0 rounded-full bg-[var(--text-tertiary)] animate-bounce"
+                  style={{ animationDelay: "150ms" }}
+                />
+                <div
+                  className="h-2 w-2 shrink-0 rounded-full bg-[var(--text-tertiary)] animate-bounce"
+                  style={{ animationDelay: "300ms" }}
+                />
               </div>
             </ChatMessage>
           )}
@@ -205,7 +248,7 @@ export default function Home() {
     id: string;
     title: string;
     status: string;
-    createdAt: any;
+    createdAt: unknown;
     finalizedSlot?: { start: string; end: string };
   }>>([]);
   const [isMounted, setIsMounted] = useState(false);
@@ -370,6 +413,22 @@ export default function Home() {
     if (!chatHydrated) return;
     saveChatMessages(messages);
   }, [messages, chatHydrated]);
+
+  useEffect(() => {
+    if (user?.uid || messages.length === 0) return;
+
+    const guestEvents = extractGuestEventResultsFromMessages(messages);
+    const latestGuestEvent = guestEvents[guestEvents.length - 1];
+    if (!latestGuestEvent) return;
+
+    saveGuestSession({
+      guestId: latestGuestEvent.guestId,
+      name: latestGuestEvent.creatorName,
+      source: "agent",
+      lastEventId: latestGuestEvent.eventId,
+    });
+  }, [messages, user?.uid]);
+
   const isLoading = status === "submitted" || status === "streaming";
   const chatStarted = messages.length > 0;
 

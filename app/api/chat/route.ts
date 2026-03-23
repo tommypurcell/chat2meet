@@ -31,6 +31,7 @@ import {
   calendarDateInTimeZone,
   formatLocalDateTimeForPrompt,
 } from "@/lib/date-in-timezone";
+import { publicEventUrl } from "@/lib/event-url";
 
 function parseSchedulingParticipants(raw: unknown): SchedulingParticipant[] {
   if (!Array.isArray(raw)) return [];
@@ -258,7 +259,11 @@ Rules:
 `
       : "";
 
-  const systemPrompt = `You are Chat2Meet Agent, a smart scheduling assistant.
+  // Check if user is logged in
+  const isLoggedIn = sessionUserId !== null;
+
+  const systemPrompt = isLoggedIn
+    ? `You are Chat2Meet Agent, a smart scheduling assistant.
 Help users find times to meet with their friends and colleagues.
 
 ## Current User
@@ -269,8 +274,13 @@ IMPORTANT: The user's local timezone is ${userTimeZone}. Local calendar date (no
 ${userCalendarData}
 ${mockNetworkCalendarsBlock}
 
-On your first message, introduce yourself briefly. Then:
-- Keep responses brief and conversational
+## Response Style
+- **CRITICAL**: Keep ALL responses SHORT and conversational (1-3 sentences max)
+- Write like texting a friend, not writing an email
+- Be direct and helpful, not verbose or flowery
+- On first message, introduce yourself in ONE sentence
+
+## How to Schedule
 - For the **current user's** schedule in the next ~7 days, rely on the **User's Google Calendar** and **Computed availability** sections above when present
 - **"When am I free?"** Use the **Free** gaps in **Computed availability** (timezone shown there). Never say you are "free all day" on a day that has any **Busy** interval or timed event. Do not invent free time inside a busy block.
 - For **Janet, Pete, Phil**, and other people in **Demo network calendars**, use the schedules above or call \`getSchedule\` / \`findOverlap\` with ids \`janet\`, \`pete\`, \`phil\` (or legacy \`user_janet\`, etc. — both work). Demo event dates are **Mar 15–29, 2026** (\`America/Los_Angeles\`).
@@ -280,6 +290,47 @@ On your first message, introduce yourself briefly. Then:
 - **NEVER call createEvent without the user's explicit confirmation.** Always summarise the event (title, date/time, attendees) and ask "Should I create this?" first.
 - After creating an event, tell the user it was added and include the Google Calendar link from the result
 ${schedulingBlock}
+${AGENT_PLAIN_TEXT_OUTPUT_RULES}`
+    : `You are Chat2Meet Agent helping someone create a scheduling poll (like When2Meet).
+
+## Guests only (no one is logged in — there is no session)
+
+Follow this order. Ask **one short question at a time** (1–2 sentences). Wait for an answer before the next step. If they already gave multiple answers in one message, acknowledge what you captured and only ask for what is still missing, **in this order**.
+
+**1) Dates — ask first when they want to meet**
+Ask something like: What dates might work — specific calendar dates, a range of days, or certain days of the week (e.g. every Tuesday and Thursday)?
+If they are vague, offer: specific dates vs days-of-week vs recurring.
+
+**2) Times of day — after they answer about dates**
+Ask: What times of day might work on those days? (e.g. mornings only, or roughly 10–3.)
+This is the general "when during the day" before you lock title or personal slots.
+
+**3) Meeting title**
+Ask: What should we call this meeting?
+
+**4) Their availability and hard limits**
+Ask: When are you personally free within that? They can give blocks (e.g. 10–12 and 1:30–4) and **constraints** like no earlier than 9am or no later than 5pm. Encourage them to say earliest and latest if it matters.
+
+**5) Their name**
+Ask: What name should show on the poll for you?
+
+**6) Timezone — last before creating**
+Ask: What timezone should we use for this poll? (e.g. America/Los_Angeles, or "Pacific".)
+Do **not** call createGuestEvent until you have a clear timezone (or a common zone name you can map).
+
+**7) Create the poll**
+When you have: dates/window, rough times, title, their availability text (including any earliest/latest limits), their name, and timezone → call **createGuestEvent**.
+For recurring or "every Monday" style answers, turn the next few occurrences into concrete dateRangeStart / dateRangeEnd for the tool.
+Pass earliestTime / latestTime from their constraints when they gave bounds (e.g. 9:00 and 17:00).
+
+Then confirm with the share link from the tool result.
+
+**Critical rules**
+- This strict When2Meet-style order applies only in guest mode (no logged-in user).
+- Keep every reply SHORT and plain (see OUTPUT FORMAT below).
+- Never mention "/network" or "Scheduling with" (those are for logged-in users only).
+- Do not use getSchedule, findOverlap, or createEvent for Google Calendar in guest mode unless the user logs in; focus on createGuestEvent for the poll.
+
 ${AGENT_PLAIN_TEXT_OUTPUT_RULES}`;
 
   console.log("=== AGENT INPUT (System Prompt) ===");
@@ -833,6 +884,119 @@ ${AGENT_PLAIN_TEXT_OUTPUT_RULES}`;
             console.error("Error creating event:", error);
             return {
               error: error instanceof Error ? error.message : "Unknown error creating event",
+            };
+          }
+        },
+      }),
+
+      createGuestEvent: tool({
+        description:
+          "Create a scheduling poll for guests (not logged in). Call only after the conversation collected: date window, general times, meeting title, creator personal availability (and earliest/latest if stated), creator name, and timezone — in that guest flow order.",
+        inputSchema: z.object({
+          title: z.string().describe("Event title/name"),
+          dateRangeStart: z.string().describe("Start date ISO or friendly (e.g. '2026-03-24' or 'Mar 24')"),
+          dateRangeEnd: z.string().describe("End date ISO or friendly"),
+          timezone: z.string().describe("IANA timezone (e.g. 'America/Los_Angeles')"),
+          earliestTime: z.string().optional().describe("Earliest time to consider (e.g. '09:00')"),
+          latestTime: z.string().optional().describe("Latest time to consider (e.g. '17:00')"),
+          durationMinutes: z.number().optional().describe("Expected duration in minutes"),
+          creatorName: z.string().describe("The creator's name for the poll"),
+          creatorAvailability: z.string().describe("The creator's availability description (e.g. '9–12 and 1:30–3 both days')"),
+        }),
+        execute: async ({ title, dateRangeStart, dateRangeEnd, timezone, earliestTime, latestTime, durationMinutes, creatorName, creatorAvailability }) => {
+          console.log("=== TOOL: createGuestEvent ===");
+          console.log({ title, dateRangeStart, dateRangeEnd, timezone, earliestTime, latestTime, durationMinutes, creatorName, creatorAvailability });
+
+          try {
+            const db = await import("@/lib/firebase-admin").then(m => m.getDb());
+            const { parseAvailability } = await import("@/lib/parse-availability");
+
+            // Parse creator's availability text into slot IDs
+            const parsedSlots = parseAvailability({
+              availabilityText: creatorAvailability,
+              dateRangeStart,
+              dateRangeEnd,
+              timezone,
+            });
+
+            console.log("Parsed availability slots:", parsedSlots);
+
+            // Use consistent creator ID
+            const creatorTempId = `guest_${creatorName.toLowerCase().replace(/\s+/g, '_')}`;
+
+            const eventRef = db.collection("events").doc();
+            const eventId = eventRef.id;
+            const shareUrl = publicEventUrl(eventId);
+
+            // Create event in Firestore (shareUrl stored on the document for clients / console)
+            const eventData = {
+              title,
+              createdBy: creatorTempId, // Store the actual guest ID, not just "guest"
+              creatorName, // Store the creator's name for display
+              participantIds: [creatorTempId],
+              dateRangeStart,
+              dateRangeEnd,
+              durationMinutes: durationMinutes || 60,
+              timezone,
+              status: "active",
+              earliestTime: earliestTime || "09:00",
+              latestTime: latestTime || "17:00",
+              shareUrl,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            };
+
+            await eventRef.set(eventData);
+
+            // Create participant entry for the creator
+            const participantData = {
+              userId: creatorTempId,
+              eventId,
+              name: creatorName,
+              availabilityText: creatorAvailability,
+              isCreator: true,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            };
+
+            await db
+              .collection("events")
+              .doc(eventId)
+              .collection("participants")
+              .doc(creatorTempId)
+              .set(participantData);
+
+            // Save parsed availability slots to the availability subcollection
+            const availabilityData = {
+              userId: creatorTempId,
+              source: "agent_parsed",
+              slots: parsedSlots,
+              originalText: creatorAvailability,
+              busyBlocks: [],
+              freeWindows: [],
+              lastSyncedAt: new Date(),
+              updatedAt: new Date(),
+            };
+
+            await db.collection("events")
+              .doc(eventId)
+              .collection("availability")
+              .doc(creatorTempId)
+              .set(availabilityData);
+
+            return {
+              success: true,
+              eventId,
+              shareUrl,
+              guestId: creatorTempId,
+              creatorName,
+              message: `Perfect — I've created your poll and added your availability. Now you can share the link so others can fill in theirs.`,
+            };
+          } catch (error) {
+            console.error("Error creating guest event:", error);
+            return {
+              success: false,
+              error: error instanceof Error ? error.message : "Failed to create event",
             };
           }
         },

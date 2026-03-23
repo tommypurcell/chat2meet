@@ -11,6 +11,15 @@ export type SuggestedTimeSlot = {
   date: string;
 };
 
+export type GuestEventResult = {
+  success: true;
+  eventId: string;
+  shareUrl: string;
+  guestId: string;
+  creatorName: string;
+  message?: string;
+};
+
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
@@ -105,6 +114,61 @@ export function extractCreateEventResultsFromMessages(
       if (part.state !== "output-available") continue;
       const output = part.output;
       if (isRecord(output) && output.success) out.push(output);
+    }
+  }
+
+  return out;
+}
+
+/** Successful createGuestEvent tool outputs (for guest session handoff). */
+export function extractGuestEventResultsFromMessages(
+  messages: unknown[],
+): GuestEventResult[] {
+  const out: GuestEventResult[] = [];
+
+  for (const msg of messages) {
+    if (!isRecord(msg) || msg.role !== "assistant") continue;
+
+    const legacy = msg.toolResults;
+    if (Array.isArray(legacy)) {
+      for (const tr of legacy) {
+        if (!isRecord(tr) || tr.toolName !== "createGuestEvent") continue;
+        const result = tr.result;
+        if (
+          isRecord(result) &&
+          result.success === true &&
+          typeof result.eventId === "string" &&
+          typeof result.shareUrl === "string" &&
+          typeof result.guestId === "string" &&
+          typeof result.creatorName === "string"
+        ) {
+          out.push(result as unknown as GuestEventResult);
+        }
+      }
+    }
+
+    const parts = msg.parts;
+    if (!Array.isArray(parts)) continue;
+
+    for (const part of parts) {
+      if (!isRecord(part)) continue;
+      const type = part.type;
+      const isCreateGuest =
+        type === "tool-createGuestEvent" ||
+        (type === "dynamic-tool" && part.toolName === "createGuestEvent");
+      if (!isCreateGuest) continue;
+      if (part.state !== "output-available") continue;
+      const output = part.output;
+      if (
+        isRecord(output) &&
+        output.success === true &&
+        typeof output.eventId === "string" &&
+        typeof output.shareUrl === "string" &&
+        typeof output.guestId === "string" &&
+        typeof output.creatorName === "string"
+      ) {
+        out.push(output as unknown as GuestEventResult);
+      }
     }
   }
 

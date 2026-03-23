@@ -10,6 +10,7 @@ import { TimeChip } from "@/components/ui/TimeChip";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { ChatMessage } from "@/components/chat/ChatMessage";
+import { ChatMessageText } from "@/components/chat/ChatMessageText";
 import { ActionBubble } from "@/components/chat/ActionBubble";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { AvailabilityGrid } from "@/components/calendar/AvailabilityGrid";
@@ -130,10 +131,12 @@ function ChatContent({
       ) : (
         messages.map((msg) => (
           <ChatMessage key={msg.id} role={msg.role}>
-            <span className="whitespace-pre-wrap">
-              {mergeUiMessageTextParts(msg.parts) ||
-                (typeof msg.content === "string" ? msg.content : "")}
-            </span>
+            <ChatMessageText
+              text={
+                mergeUiMessageTextParts(msg.parts) ||
+                (typeof msg.content === "string" ? msg.content : "")
+              }
+            />
           </ChatMessage>
         ))
       )}

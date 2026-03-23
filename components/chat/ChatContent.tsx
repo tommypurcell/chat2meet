@@ -1,5 +1,6 @@
 import React from "react";
 import { ChatMessage } from "./ChatMessage";
+import { ChatMessageText } from "./ChatMessageText";
 import { ActionBubble } from "./ActionBubble";
 import { TimeChip } from "../ui/TimeChip";
 import { Avatar } from "../ui/Avatar";
@@ -95,10 +96,12 @@ export function ChatContent({
       ) : (
         messages.map((msg) => (
           <ChatMessage key={msg.id} role={msg.role}>
-            <span className="whitespace-pre-wrap">
-              {mergeUiMessageTextParts(msg.parts) ||
-                (typeof msg.content === "string" ? msg.content : "")}
-            </span>
+            <ChatMessageText
+              text={
+                mergeUiMessageTextParts(msg.parts) ||
+                (typeof msg.content === "string" ? msg.content : "")
+              }
+            />
           </ChatMessage>
         ))
       )}

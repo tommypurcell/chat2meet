@@ -4,8 +4,9 @@
 
 1. Browser loads App Router pages from `app/`.
 2. **Home** is a client component: sidebar, chat (`useChat`), calendar fetch for agent context, optional My Calendar and heatmap panels. Scheduling participants and chat messages may be persisted in **localStorage** (`lib/scheduling-storage.ts`, `lib/chat-storage.ts`).
-3. Chat requests use **`DefaultChatTransport`** to `POST /api/chat` with **credentials** so the **session cookie** is sent. The body can include `calendarContext` (preformatted markdown from the client), `schedulingParticipants`, `currentUserId`, and **`userTimezone`** (IANA zone for correct “today” in the system prompt).
-4. Route handlers in `app/api/**/route.ts` use **`getDb()`** from `lib/firebase-admin.ts` and often **`getSessionUserId()`** from `lib/auth-session.ts` for authenticated operations.
+3. **`/events/*` routes** use **`app/events/layout.tsx`** to wrap pages in **`bg-[var(--bg-secondary)]`** so event detail matches panel-style surfaces from the style guide (not a full-viewport strip of `--bg-primary` alone).
+4. Chat requests use **`DefaultChatTransport`** to `POST /api/chat` with **credentials** so the **session cookie** is sent. The body can include `calendarContext` (preformatted markdown from the client), `schedulingParticipants`, `currentUserId`, and **`userTimezone`** (IANA zone for correct “today” in the system prompt).
+5. Route handlers in `app/api/**/route.ts` use **`getDb()`** from `lib/firebase-admin.ts` and often **`getSessionUserId()`** from `lib/auth-session.ts` for authenticated operations.
 
 ## Firebase Admin
 

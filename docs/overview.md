@@ -30,9 +30,24 @@ public/              # Static assets
 
 - **Home (`app/page.tsx`):** Client layout with sidebar, **AI chat** (`useChat` + `DefaultChatTransport`), `ChatInput`, optional **My Calendar** column (`MyCalendarEvents`), optional **availability heatmap** (`AvailabilityHeatmap`). Chat transcript can persist in **localStorage** (`lib/chat-storage.ts`).
 - **Test chat (`app/test-chat/page.tsx`):** Same chat UX against `/api/test-chat` with mock calendar data.
-- **Chat UI:** `ChatContent` / inline chat blocks use `mergeUiMessageTextParts` for assistant text; **time chips** and **heatmap** read tool outputs via `lib/chat-tool-outputs.ts` (AI SDK v5 **`parts`**, not legacy `toolResults`).
+- **Chat UI:** `ChatContent` / inline chat blocks use `mergeUiMessageTextParts` for assistant text; **`ChatMessageText`** linkifies URLs with `--text-link`; **time chips** and **heatmap** read tool outputs via `lib/chat-tool-outputs.ts` (AI SDK **`parts`**).
 - **Network:** `/network` page for connections; typing `/network` in chat opens a **view-only** network modal (`NetworkPickerModal`).
-- **Other routes:** Onboarding, profile, invite/join/event flows — see `app/`.
+- **Events:** **`/events/[id]`** — event detail (share link, participants, CTA back to app). Wrapped by **`app/events/layout.tsx`** so the route uses **`--bg-secondary`** panel tones instead of bare **`--bg-primary`** for the full viewport.
+- **Other routes:** Onboarding (`/onboarding`, `/onboarding/preferences`), auth (`/auth`, `/login`, `/signin`), profile (`/profile`, `/profile/[userId]`), calendar (`/calendar`), availability (`/availability`), settings (`/settings`), invite/join/event demo flows (`/invite/[id]`, `/join/[id]`, `/event/[id]`), **`/addnetwork`**, **`/test-calendar`** — see `app/*/page.tsx`.
+
+### Key App Router pages (non-exhaustive)
+
+| Path | Role |
+| --- | --- |
+| `/` | Main chat + sidebar + optional calendar / heatmap |
+| `/events/[id]` | Event detail & share (styled with events layout) |
+| `/network` | Connections UI |
+| `/calendar` | Calendar-focused screen |
+| `/availability` | User availability grid |
+| `/test-chat` | Chat against `/api/test-chat` |
+| `/test-calendar` | Calendar testing |
+| `/settings` | Settings |
+| `/auth`, `/login` | Authentication entry points |
 
 ## Backend (high level)
 

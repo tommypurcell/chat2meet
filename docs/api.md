@@ -21,6 +21,7 @@ Base URL in development: `http://localhost:3000`. All JSON bodies use `Content-T
 | `/api/events/[eventId]/participants/[userId]` | GET, PATCH, DELETE |
 | `/api/events/[eventId]/availability` | GET, POST |
 | `/api/events/[eventId]/availability/[userId]` | GET, PATCH, DELETE |
+| `/api/events/[eventId]/group-availability` | POST | Aggregate participant availability for an event (body: `participantIds`, …) |
 
 ### Route index (auth, chat, calendar)
 
@@ -28,7 +29,8 @@ Base URL in development: `http://localhost:3000`. All JSON bodies use `Content-T
 | --- | --- | --- |
 | `/api/auth/session` | POST | Exchange Firebase ID token for session cookie |
 | `/api/auth/me` | GET | Current user profile (session) |
-| `/api/auth/signout` | POST | Clear session |
+| `/api/auth/signout` | POST | Clear Firebase session cookie (`cookies.delete`) |
+| `/api/auth/logout` | POST | Clear session cookie (`maxAge: 0`); same goal as signout, different implementation |
 | `/api/auth/google`, `/api/auth/google/callback` | GET | Google OAuth for Calendar |
 | `/api/chat` | POST | Streaming UI message response; tools + Google/mock calendar |
 | `/api/test-chat` | POST | Same shape as chat; mock-heavy demo |
@@ -36,7 +38,8 @@ Base URL in development: `http://localhost:3000`. All JSON bodies use `Content-T
 | `/api/user`, `/api/user/[userId]`, `/api/user/availability` | GET, PATCH, … | Profile and preferences |
 | `/api/friends` | GET, POST | Friends / connections |
 | `/api/calendar/google/events` | GET | List events (OAuth, `userId` query) |
-| `/api/calendar/google/connect`, `disconnect`, `busy`, `calendars`, `heatmap`, `auth-url` | GET, POST, … | Google Calendar integration |
+| `/api/calendar/google/connect`, `disconnect`, `busy`, `calendars`, `heatmap`, `auth-url` | GET, POST, … | Google Calendar integration (per-user OAuth) |
+| `/api/calendar/heatmap` | POST | **Multi-user** slot grid for UI heatmap (`userIds`, date range, `timezone`, …) — see `lib/heatmap-types` |
 | `/api/calendar/availability` | POST | Multi-user availability slots (server-side math) |
 | `/api/calendars/sync` | POST | Save last-fetched Google events snapshot to **`calendars/{uid}`** (session) |
 
@@ -275,6 +278,14 @@ Updatable: `source`, `busyBlocks`, `freeWindows`, `lastSyncedAt`.
 ### `DELETE /api/events/[eventId]/availability/[userId]`
 
 **200** | **404**
+
+---
+
+## Event group availability — aggregate
+
+### `POST /api/events/[eventId]/group-availability`
+
+Aggregates per-participant availability under the event for scoring / display. Expects JSON including **`participantIds`** (array). Returns slot summaries (e.g. scores, who is free). Used when building group views from stored `events/{eventId}/availability` data.
 
 ---
 

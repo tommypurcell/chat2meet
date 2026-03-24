@@ -1,3 +1,8 @@
+import {
+  EVENT_GRID_MAX_SLOT_INDEX,
+  slotIndexToTimeLabel,
+} from "@/lib/event-grid-slots";
+
 /**
  * Parse natural language availability into grid slot IDs
  *
@@ -205,8 +210,8 @@ export function parseAvailability({
         ) {
           const slotIdx = timeToSlotIndex(currentHour, currentMinute);
 
-          // Only add if it's within valid grid bounds (9 AM - 5 PM)
-          if (slotIdx >= 0 && slotIdx <= 16) {
+          // Only add if it's within valid supported grid bounds.
+          if (slotIdx >= 0 && slotIdx <= EVENT_GRID_MAX_SLOT_INDEX) {
             const key: CellKey = `${dayIdx}-${slotIdx}`;
 
             // Only add if applies to all days, or if this is the first day
@@ -236,6 +241,29 @@ export function parseAvailability({
     console.error('Error parsing availability:', error);
     return [];
   }
+}
+
+export function inferAvailabilityBoundsFromSlots(
+  slots: readonly `${number}-${number}`[],
+): { earliestTime: string; latestTime: string } | null {
+  const slotIndices = slots
+    .map((slot) => {
+      const parts = slot.split("-");
+      const idx = Number(parts[1]);
+      return Number.isInteger(idx) ? idx : null;
+    })
+    .filter((idx): idx is number => idx !== null)
+    .filter((idx) => idx >= 0 && idx <= EVENT_GRID_MAX_SLOT_INDEX);
+
+  if (slotIndices.length === 0) return null;
+
+  const min = Math.min(...slotIndices);
+  const max = Math.max(...slotIndices);
+
+  return {
+    earliestTime: slotIndexToTimeLabel(min),
+    latestTime: slotIndexToTimeLabel(max + 1),
+  };
 }
 
 /**

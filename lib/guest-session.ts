@@ -1,51 +1,67 @@
 "use client";
 
-const GUEST_SESSION_KEY = "when2meet_guest_session";
+const GUEST_SESSION_KEY = "when2meet_guest_sessions";
 
 export type GuestSession = {
+  eventId: string;
   guestId: string;
   name: string;
-  source: "agent";
-  lastEventId?: string;
+  source: "agent" | "manual";
 };
 
-export function loadGuestSession(): GuestSession | null {
+type GuestSessionMap = Record<string, GuestSession>;
+
+function loadGuestSessionMap(): GuestSessionMap {
   try {
     const raw = localStorage.getItem(GUEST_SESSION_KEY);
-    if (!raw) return null;
+    if (!raw) return {};
 
-    const parsed = JSON.parse(raw) as Partial<GuestSession>;
-    if (
-      typeof parsed?.guestId !== "string" ||
-      typeof parsed?.name !== "string" ||
-      parsed?.source !== "agent"
-    ) {
-      return null;
+    const parsed = JSON.parse(raw) as Record<string, Partial<GuestSession>>;
+    const sessions: GuestSessionMap = {};
+
+    for (const [eventId, session] of Object.entries(parsed)) {
+      if (
+        typeof session?.eventId === "string" &&
+        session.eventId === eventId &&
+        typeof session?.guestId === "string" &&
+        typeof session?.name === "string" &&
+        (session?.source === "agent" || session?.source === "manual")
+      ) {
+        sessions[eventId] = {
+          eventId,
+          guestId: session.guestId,
+          name: session.name,
+          source: session.source,
+        };
+      }
     }
 
-    return {
-      guestId: parsed.guestId,
-      name: parsed.name,
-      source: "agent",
-      lastEventId: typeof parsed.lastEventId === "string" ? parsed.lastEventId : undefined,
-    };
+    return sessions;
   } catch {
-    return null;
+    return {};
   }
+}
+
+function saveGuestSessionMap(sessions: GuestSessionMap): void {
+  try {
+    localStorage.setItem(GUEST_SESSION_KEY, JSON.stringify(sessions));
+  } catch {
+    // Best-effort only.
+  }
+}
+
+export function loadGuestSession(eventId: string): GuestSession | null {
+  return loadGuestSessionMap()[eventId] ?? null;
 }
 
 export function saveGuestSession(session: GuestSession): void {
-  try {
-    localStorage.setItem(GUEST_SESSION_KEY, JSON.stringify(session));
-  } catch {
-    // Best-effort only.
-  }
+  const sessions = loadGuestSessionMap();
+  sessions[session.eventId] = session;
+  saveGuestSessionMap(sessions);
 }
 
-export function clearGuestSession(): void {
-  try {
-    localStorage.removeItem(GUEST_SESSION_KEY);
-  } catch {
-    // Best-effort only.
-  }
+export function clearGuestSession(eventId: string): void {
+  const sessions = loadGuestSessionMap();
+  delete sessions[eventId];
+  saveGuestSessionMap(sessions);
 }

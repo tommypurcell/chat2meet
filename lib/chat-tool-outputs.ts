@@ -17,7 +17,72 @@ export type GuestEventResult = {
   shareUrl: string;
   guestId: string;
   creatorName: string;
+  title?: string;
+  dateRangeStart?: string;
+  dateRangeEnd?: string;
+  timezone?: string;
+  durationMinutes?: number;
   message?: string;
+};
+
+export type EventPollCardResult = {
+  success: true;
+  eventId: string;
+  event: {
+    title: string;
+    dateRangeStart: string;
+    dateRangeEnd: string;
+    timezone: string;
+    durationMinutes: number;
+    earliestTime: string;
+    latestTime: string;
+    status: string;
+    shareUrl: string;
+  };
+  participants: Array<{
+    userId: string;
+    name: string;
+    hasAvailability: boolean;
+    slotCount: number;
+  }>;
+  missingResponders: string[];
+  gridSlots: Array<{
+    dayIdx: number;
+    slotIdx: number;
+    date: string;
+    dateLabel: string;
+    time: string;
+    availableCount: number;
+    totalParticipants: number;
+    score: number;
+    availableUsers: string[];
+    unavailableUsers: string[];
+  }>;
+  everyoneAvailableSlots: Array<{
+    dayIdx: number;
+    slotIdx: number;
+    date: string;
+    dateLabel: string;
+    time: string;
+    availableCount: number;
+    totalParticipants: number;
+    score: number;
+    availableUsers: string[];
+    unavailableUsers: string[];
+  }>;
+  topSlots: Array<{
+    dayIdx: number;
+    slotIdx: number;
+    date: string;
+    dateLabel: string;
+    time: string;
+    availableCount: number;
+    totalParticipants: number;
+    score: number;
+    availableUsers: string[];
+    unavailableUsers: string[];
+  }>;
+  summary: string;
 };
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -169,6 +234,37 @@ export function extractGuestEventResultsFromMessages(
       ) {
         out.push(output as unknown as GuestEventResult);
       }
+    }
+  }
+
+  return out;
+}
+
+export function extractEventPollCardsFromMessage(
+  message: unknown,
+): EventPollCardResult[] {
+  const out: EventPollCardResult[] = [];
+  if (!isRecord(message) || message.role !== "assistant") return out;
+
+  const parts = message.parts;
+  if (!Array.isArray(parts)) return out;
+
+  for (const part of parts) {
+    if (!isRecord(part)) continue;
+    const type = part.type;
+    const isEventPoll =
+      type === "tool-showEventPoll" ||
+      (type === "dynamic-tool" && part.toolName === "showEventPoll");
+    if (!isEventPoll) continue;
+    if (part.state !== "output-available") continue;
+    const output = part.output;
+    if (
+      isRecord(output) &&
+      output.success === true &&
+      typeof output.eventId === "string" &&
+      isRecord(output.event)
+    ) {
+      out.push(output as unknown as EventPollCardResult);
     }
   }
 

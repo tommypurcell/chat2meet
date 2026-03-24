@@ -38,6 +38,20 @@ function parseSchedulingParticipants(raw: unknown): SchedulingParticipant[] {
     }));
 }
 
+function buildRelativeDatePromptSection(
+  timeZone: string,
+  localDate: string,
+  localDateTime: string,
+): string {
+  return `## Relative Dates And Timezones
+- The current assumed timezone is ${timeZone}.
+- The current local calendar date in that timezone is ${localDate}.
+- The current local time in that timezone is ${localDateTime}.
+- Interpret words like "today", "tomorrow", "tmrw", "this weekend", and "next Monday" using this local date/time context, never UTC.
+- If the user seems confused about relative dates or the timezone context may be wrong, briefly restate the exact date and timezone before proceeding.
+`;
+}
+
 export async function POST(req: Request) {
   const body = (await req.json()) as {
     messages?: UIMessage[];
@@ -53,6 +67,9 @@ export async function POST(req: Request) {
   const schedulingParticipants = parseSchedulingParticipants(body.schedulingParticipants);
 
   const demoTz = "America/Los_Angeles";
+  const promptNow = new Date();
+  const promptLocalDate = calendarDateInTimeZone(promptNow, demoTz);
+  const promptLocalDateTime = formatLocalDateTimeForPrompt(promptNow, demoTz);
 
   let userCalendarData = "";
   try {
@@ -117,6 +134,8 @@ Help users find times to meet with their friends and colleagues.
 The logged-in user's ID is: ${currentUserId ?? "(unknown)"}
 
 IMPORTANT: Demo timezone is ${demoTz}. Local calendar date (not UTC): ${calendarDateInTimeZone(new Date(), demoTz)}. Local time now: ${formatLocalDateTimeForPrompt(new Date(), demoTz)}. Use this local date for "today" — do not infer the calendar day from UTC.
+
+${buildRelativeDatePromptSection(demoTz, promptLocalDate, promptLocalDateTime)}
 
 ${userCalendarData}
 ${mockNetworkCalendarsBlock}

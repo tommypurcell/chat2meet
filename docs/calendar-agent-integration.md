@@ -246,6 +246,8 @@ Finds common free time slots between multiple users using real Google Calendar d
 
 AI SDK **v5** stores tool results on assistant messages under **`parts`** (e.g. `type: "tool-suggestTimes"`, `state: "output-available"`, `output: { suggestedTimes, explanation }`). Older code paths assumed **`message.toolResults`**, which is usually empty—**time chips and `AvailabilityHeatmap` would show nothing**. The app uses **`lib/chat-tool-outputs.ts`** (`extractSuggestedTimesFromMessages`, `extractCreateEventResultsFromMessages`) so both **`parts`** and any legacy **`toolResults`** shape work. Assistant **text** is merged with **`mergeUiMessageTextParts`** in `lib/utils.ts` to avoid duplicated paragraphs after multi-step tool runs.
 
+For guest-created polls, the assistant now calls **`showEventPoll`** after **`createGuestEvent`** so the chat can render the in-chat poll card / heatmap before the final success text. On the home page, a separate guest account CTA appears under that poll card with **Continue with Google** and **Sign up with email**; successful auth can then attach the guest poll to the new account via **`POST /api/events/[eventId]/claim-guest`**.
+
 ## Firestore snapshot: `calendars/{uid}`
 
 After a successful Google events fetch on the home page, the client calls **`POST /api/calendars/sync`** (session required) to upsert a snapshot document for debugging and future features. See [firebase-mvp.md](./firebase-mvp.md).

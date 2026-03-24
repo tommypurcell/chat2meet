@@ -17,6 +17,7 @@ Base URL in development: `http://localhost:3000`. All JSON bodies use `Content-T
 | `/api/network/[connectionId]` | GET, PATCH, DELETE |
 | `/api/events` | GET, POST |
 | `/api/events/[eventId]` | GET, PATCH, DELETE |
+| `/api/events/[eventId]/claim-guest` | POST |
 | `/api/events/[eventId]/participants` | GET, POST |
 | `/api/events/[eventId]/participants/[userId]` | GET, PATCH, DELETE |
 | `/api/events/[eventId]/availability` | GET, POST |
@@ -189,6 +190,26 @@ Updatable: `title`, `participantIds`, `dateRangeStart`, `dateRangeEnd`, `duratio
 ### `DELETE /api/events/[eventId]`
 
 **200** | **404**
+
+### `POST /api/events/[eventId]/claim-guest`
+
+Session-authenticated route used after a guest creates a poll and then signs up or signs in.
+
+| Body field | Required | Notes |
+| --- | --- | --- |
+| `guestId` | yes | Guest identity previously stored on the event, e.g. `guest_tim` |
+
+Behavior:
+
+- Verifies the signed-in user from the session cookie
+- Verifies the given `guestId` is the event creator or a participant on that event
+- Migrates `participants/{guestId}` and `availability/{guestId}` to the signed-in uid
+- Updates parent event `createdBy`, `creatorName`, and `participantIds`
+
+**200:** `{ success: true, eventId, userId, claimedFromGuestId }`  
+**400:** guest id missing / not attached to the event  
+**401:** no session  
+**404:** event missing
 
 ---
 

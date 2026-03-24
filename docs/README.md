@@ -17,12 +17,15 @@ Use this file as the **index**. Canonical technical detail lives in the linked f
 | [api.md](./api.md) | HTTP routes under `app/api/**` (CRUD, auth, chat, calendar) |
 | [components.md](./components.md) | `components/` folders and notable UI modules |
 | [styleguide.md](./styleguide.md) | CSS tokens (`globals.css`), typography, component styling patterns |
+| [building-on-this-version.md](./building-on-this-version.md) | Practical contributor guide: current flows, guardrails, and easy things to break |
+| [features.md](./features.md) | Full feature inventory + “what not to break” for implementers |
 | [firebase-mvp.md](./firebase-mvp.md) | Firestore schema, seeding, MVP rules |
 
 ## Calendar & agent
 
 | Document | Description |
 | --- | --- |
+| [agent-flow.md](./agent-flow.md) | Agent personas, guest vs logged-in flows, tools, and prompt rules (`/api/chat`, test-chat, onboarding) |
 | [calendar-agent-integration.md](./calendar-agent-integration.md) | Scheduling agent: tools, calendar context, chat payload, chips & heatmap |
 | [testing-agent-calendar.md](./testing-agent-calendar.md) | Manual checks for Google Calendar + agent behavior |
 | [google-calendar-setup.md](./google-calendar-setup.md) | OAuth and Google Calendar connection |

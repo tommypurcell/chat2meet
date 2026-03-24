@@ -30,8 +30,9 @@ Styled with CSS variables from `app/globals.css`; see [styleguide.md](./stylegui
 | `ActionBubble.tsx` | CTA bubble (e.g. create invite) |
 | `AvailabilityHeatmap.tsx` | Group availability grid (fetches `POST /api/calendar/heatmap`) |
 | `ChatWindow.tsx` | Legacy sample chat shell |
+| `EventPollCard.tsx` | In-chat When2Meet-style overlap grid + share link for `showEventPoll` tool output |
 
-Home (`app/page.tsx`) **inlines** a large chat block (not only `components/chat/ChatContent.tsx`); logic mirrors `ChatContent` (empty state, messages, typing row, chips, invite preview).
+Home (`app/page.tsx`) **inlines** a large chat block (not only `components/chat/ChatContent.tsx`); logic mirrors `ChatContent` (empty state, messages, typing row, chips, invite preview) and adds **guest** empty state, **`EventPollCard`**, guest account CTA, Google / email signup, and claim flows. Prompt strings for guests live in **`lib/guest-chat-starters.ts`**.
 
 ## `components/calendar/`
 

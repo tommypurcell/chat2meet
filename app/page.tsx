@@ -1,18 +1,29 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
+import {
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+} from "firebase/auth";
 import { TimeChip } from "@/components/ui/TimeChip";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatMessageText } from "@/components/chat/ChatMessageText";
-import { ActionBubble } from "@/components/chat/ActionBubble";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { AvailabilityHeatmap } from "@/components/chat/AvailabilityHeatmap";
+import { EventPollCard } from "@/components/chat/EventPollCard";
 import {
   MyCalendarEvents,
   type CalendarView,
@@ -21,6 +32,7 @@ import { SchedulingParticipantsBar } from "@/components/chat/SchedulingParticipa
 import { NetworkPickerModal } from "@/components/network/NetworkPickerModal";
 import { useTheme } from "@/lib/theme";
 import { useAuth } from "@/lib/auth-context";
+import { getFirebaseAuth, googleAuthProvider } from "@/lib/firebase-client";
 import {
   clearChatMessages,
   loadChatMessages,
@@ -38,11 +50,16 @@ import {
 } from "@/lib/format-calendar-for-prompt";
 import {
   extractCreateEventResultsFromMessages,
+  extractEventPollCardsFromMessage,
   extractGuestEventResultsFromMessages,
   extractSuggestedTimesFromMessages,
 } from "@/lib/chat-tool-outputs";
 import { calendarDateInTimeZone } from "@/lib/date-in-timezone";
-import { saveGuestSession } from "@/lib/guest-session";
+import { clearGuestSession, saveGuestSession } from "@/lib/guest-session";
+import {
+  GUEST_CREATE_EVENT_MESSAGE,
+  GUEST_QUICK_STARTS,
+} from "@/lib/guest-chat-starters";
 import { cn, mergeUiMessageTextParts } from "@/lib/utils";
 import {
   CHAT_SUGGESTIONS,
@@ -107,6 +124,149 @@ function getChatMessageVisibleText(msg: {
   return (merged || fromContent).trim();
 }
 
+type ChatUiMessage = {
+  id?: string;
+  role?: string;
+  parts?: unknown;
+  content?: unknown;
+};
+
+function GoogleMark() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden>
+      <path
+        fill="#4285F4"
+        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+      />
+    </svg>
+  );
+}
+
+function AssistantGoogleSignInPrompt({
+  busy,
+  emailBusy,
+  error,
+  emailError,
+  showEmailForm,
+  email,
+  password,
+  confirmPassword,
+  onSignIn,
+  onToggleEmailForm,
+  onEmailChange,
+  onPasswordChange,
+  onConfirmPasswordChange,
+  onEmailSignUp,
+}: {
+  busy: boolean;
+  emailBusy: boolean;
+  error: string | null;
+  emailError: string | null;
+  showEmailForm: boolean;
+  email: string;
+  password: string;
+  confirmPassword: string;
+  onSignIn: () => void;
+  onToggleEmailForm: () => void;
+  onEmailChange: (value: string) => void;
+  onPasswordChange: (value: string) => void;
+  onConfirmPasswordChange: (value: string) => void;
+  onEmailSignUp: () => void;
+}) {
+  return (
+    <div className="px-4 py-1">
+      <div className="flex gap-2">
+        <Avatar name="W" size={28} className="mt-1" />
+        <div className="min-w-0">
+          <div className="block w-fit max-w-[280px] min-w-0 rounded-2xl rounded-bl-[4px] bg-[var(--bubble-receiver)] px-3.5 py-2 text-base leading-[1.35] tracking-[-0.32px] text-[var(--bubble-receiver-text)]">
+            <div className="min-w-0 break-words [word-break:break-word]">
+              Create an account to manage your polls, connect your calendar, and schedule faster next time.
+            </div>
+          </div>
+          <div className="flex flex-row gap-2 mt-2">
+
+
+          <button
+            type="button"
+            onClick={onSignIn}
+            disabled={busy}
+            className="mt-2 inline-flex cursor-pointer items-center gap-2 rounded-xl border border-[#dadce0] bg-white px-4 py-2.5 text-sm font-medium text-[#1f1f1f] shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <GoogleMark />
+            {busy ? "Signing in..." : "Continue with Google"}
+          </button>
+          <button
+            type="button"
+            onClick={onToggleEmailForm}
+            className="mt-2 block cursor-pointer rounded-xl border border-[var(--divider)] bg-[var(--bg-secondary)] px-4 py-2.5 text-sm font-medium text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-tertiary)]"
+          >
+            Sign up with email
+          </button>
+
+            </div>
+          {showEmailForm && (
+            <div className="mt-3 w-full max-w-[320px] rounded-xl border border-[var(--divider)] bg-[var(--bg-secondary)] p-3">
+              <div className="grid gap-2">
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => onEmailChange(e.target.value)}
+                  placeholder="Email"
+                  className="rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--border-focused)]"
+                />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => onPasswordChange(e.target.value)}
+                  placeholder="Password"
+                  className="rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--border-focused)]"
+                />
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => onConfirmPasswordChange(e.target.value)}
+                  placeholder="Confirm password"
+                  className="rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--border-focused)]"
+                />
+                <button
+                  type="button"
+                  onClick={onEmailSignUp}
+                  disabled={emailBusy}
+                  className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-[var(--accent-primary)] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {emailBusy ? "Creating account..." : "Create account"}
+                </button>
+              </div>
+            </div>
+          )}
+          {error && (
+            <div className="mt-2 text-xs text-[var(--accent-danger)]">
+              {error}
+            </div>
+          )}
+          {emailError && (
+            <div className="mt-2 text-xs text-[var(--accent-danger)]">
+              {emailError}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Chat content (messages + time slots + invite) ───── */
 function ChatContent({
   messages,
@@ -118,7 +278,7 @@ function ChatContent({
   onCloseInvite,
   onSuggestionClick,
 }: {
-  messages: unknown[];
+  messages: ChatUiMessage[];
   isLoading: boolean;
   selectedSlot: string | null;
   showInvitePreview: boolean;
@@ -132,8 +292,8 @@ function ChatContent({
   const showTypingRow =
     isLoading &&
     (messages.length === 0 ||
-      (lastMsg as any)?.role === "user" ||
-      ((lastMsg as any)?.role === "assistant" && lastVisibleText === ""));
+      lastMsg?.role === "user" ||
+      (lastMsg?.role === "assistant" && lastVisibleText === ""));
 
   return (
     <div>
@@ -157,7 +317,7 @@ function ChatContent({
         </div>
       ) : (
         <>
-          {messages.map((msg: any, index) => {
+          {messages.map((msg, index) => {
             if (
               msg.role === "assistant" &&
               getChatMessageVisibleText(msg) === "" &&
@@ -167,14 +327,23 @@ function ChatContent({
               return null;
             }
             return (
-              <ChatMessage key={msg.id} role={msg.role}>
-                <ChatMessageText
-                  text={
-                    mergeUiMessageTextParts(msg.parts) ||
-                    (typeof msg.content === "string" ? msg.content : "")
-                  }
-                />
-              </ChatMessage>
+              <div key={msg.id}>
+                <ChatMessage role={msg.role}>
+                  <ChatMessageText
+                    text={
+                      mergeUiMessageTextParts(msg.parts) ||
+                      (typeof msg.content === "string" ? msg.content : "")
+                    }
+                  />
+                </ChatMessage>
+                {msg.role === "assistant" &&
+                  extractEventPollCardsFromMessage(msg).map((poll) => (
+                    <EventPollCard
+                      key={`${msg.id}-${poll.eventId}`}
+                      poll={poll}
+                    />
+                  ))}
+              </div>
             );
           })}
 
@@ -202,10 +371,85 @@ function ChatContent({
   );
 }
 
+const guestEmptyCardClass =
+  "group flex w-full flex-col items-start gap-2 rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] px-5 py-4 text-left transition-all hover:border-[var(--accent-primary)]/30 hover:bg-[var(--bg-tertiary)] cursor-pointer";
+
+function GuestChatEmptyState({
+  className,
+  onCreateEvent,
+  onQuickStart,
+}: {
+  className?: string;
+  onCreateEvent: () => void;
+  onQuickStart: (prompt: string) => void;
+}) {
+  return (
+    <div className={cn("flex flex-col items-center", className)}>
+      <div className="mb-4 flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[var(--bg-tertiary)]">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden>
+          <path
+            d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"
+            stroke="var(--text-tertiary)"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </div>
+      <p className="mb-6 max-w-md text-center text-sm font-medium text-[var(--text-secondary)]">
+        Start a conversation to find meeting times
+      </p>
+
+      <div className="grid w-full max-w-2xl grid-cols-2 gap-3">
+        <button
+          type="button"
+          onClick={onCreateEvent}
+          className={guestEmptyCardClass}
+        >
+          <p className="text-sm font-semibold text-[var(--text-primary)] transition-colors group-hover:text-[var(--accent-primary)]">
+            Create an event
+          </p>
+          <p className="text-xs text-[var(--text-secondary)]">
+            Shareable poll — calendar or manual availability
+          </p>
+        </button>
+        <Link
+          href="/auth"
+          className={cn(guestEmptyCardClass, "no-underline")}
+        >
+          <p className="text-sm font-semibold text-[var(--text-primary)] transition-colors group-hover:text-[var(--accent-primary)]">
+            Connect calendar
+          </p>
+          <p className="text-xs text-[var(--text-secondary)]">
+            Sign in to link Google Calendar for smarter scheduling
+          </p>
+        </Link>
+      </div>
+
+      <p className="mb-2 mt-8 w-full max-w-2xl text-center text-xs font-medium text-[var(--text-tertiary)]">
+        Quick start
+      </p>
+      <div className="flex w-full max-w-2xl flex-wrap justify-center gap-1.5">
+        {GUEST_QUICK_STARTS.map((q) => (
+          <button
+            key={q.label}
+            type="button"
+            onClick={() => onQuickStart(q.prompt)}
+            title={q.subtitle}
+            className="rounded-full hover:cursor-pointer border border-[var(--border)] bg-[var(--bg-secondary)] px-2.5 py-1 text-[11px] font-medium leading-tight text-[var(--text-primary)] transition-colors hover:border-[var(--accent-primary)]/30 hover:bg-[var(--bg-tertiary)] sm:px-3 sm:text-xs"
+          >
+            {q.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ── Main page ────────────────────────────────────────── */
 export default function Home() {
   const { theme, toggle } = useTheme();
-  const { user, signOut } = useAuth();
+  const { user, signOut, refresh } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const [schedulingParticipants, setSchedulingParticipants] = useState<
@@ -422,15 +666,40 @@ export default function Home() {
     if (!latestGuestEvent) return;
 
     saveGuestSession({
+      eventId: latestGuestEvent.eventId,
       guestId: latestGuestEvent.guestId,
       name: latestGuestEvent.creatorName,
       source: "agent",
-      lastEventId: latestGuestEvent.eventId,
     });
   }, [messages, user?.uid]);
 
+  const guestEvents = useMemo(
+    () => extractGuestEventResultsFromMessages(messages),
+    [messages],
+  );
+  const latestGuestEvent = guestEvents[guestEvents.length - 1];
+  const [signInBusy, setSignInBusy] = useState(false);
+  const [signInError, setSignInError] = useState<string | null>(null);
+  const [emailFormOpen, setEmailFormOpen] = useState(false);
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  useEffect(() => {
+    setEmailFormOpen(false);
+    setEmailError(null);
+    setEmail("");
+    setPassword("");
+    setConfirmPassword("");
+  }, [latestGuestEvent?.eventId]);
+
   const isLoading = status === "submitted" || status === "streaming";
   const chatStarted = messages.length > 0;
+
+  const [chatInputDraft, setChatInputDraft] = useState("");
+  const [chatInputFocusRequest, setChatInputFocusRequest] = useState(0);
 
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [showInvitePreview, setShowInvitePreview] = useState(false);
@@ -445,6 +714,21 @@ export default function Home() {
   const [heatmapWidth, setHeatmapWidth] = useState(350);
   const isResizing = useRef(false);
   const isResizingHeatmap = useRef(false);
+
+  const chatScrollDesktopRef = useRef<HTMLDivElement>(null);
+  const chatScrollTabletRef = useRef<HTMLDivElement>(null);
+  const chatScrollMobileRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const nodes = [
+      chatScrollDesktopRef.current,
+      chatScrollTabletRef.current,
+      chatScrollMobileRef.current,
+    ].filter(Boolean) as HTMLDivElement[];
+    for (const el of nodes) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [messages, status, emailFormOpen, latestGuestEvent, signInError, emailError]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -511,6 +795,25 @@ export default function Home() {
     setMessages([]);
     setSelectedSlot(null);
     setShowInvitePreview(false);
+    setChatInputDraft("");
+    setEmailFormOpen(false);
+    setEmailError(null);
+    setEmail("");
+    setPassword("");
+    setConfirmPassword("");
+  }
+
+  function requestChatInputFocus() {
+    setChatInputFocusRequest((n) => n + 1);
+  }
+
+  function handleGuestCreateEvent() {
+    handleSendMessage(GUEST_CREATE_EVENT_MESSAGE);
+  }
+
+  function handleGuestQuickStart(prompt: string) {
+    setChatInputDraft(prompt);
+    requestChatInputFocus();
   }
 
   function handleRemoveParticipant(memberUserId: string) {
@@ -524,13 +827,123 @@ export default function Home() {
     router.push("/login");
   }
 
+  async function claimGuestPoll() {
+    if (!latestGuestEvent) return;
+    const res = await fetch(`/api/events/${latestGuestEvent.eventId}/claim-guest`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ guestId: latestGuestEvent.guestId }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(data.error || "Failed to attach poll to your account");
+    }
+    clearGuestSession(latestGuestEvent.eventId);
+  }
+
+  async function handleGoogleSignInFromChat() {
+    setSignInError(null);
+    setEmailError(null);
+    setSignInBusy(true);
+    try {
+      const auth = getFirebaseAuth();
+      const credential = await signInWithPopup(auth, googleAuthProvider);
+      const idToken = await credential.user.getIdToken();
+      const res = await fetch("/api/auth/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken }),
+        credentials: "include",
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        isNew?: boolean;
+      };
+      if (!res.ok) {
+        throw new Error(data.error || "Could not create session");
+      }
+      await auth.signOut();
+      await refresh();
+      await claimGuestPoll();
+      if (data.isNew) {
+        router.push("/onboarding");
+      } else {
+        router.push("/");
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Sign-in failed. Try again.";
+      if (message.includes("auth/popup-closed-by-user")) {
+        setSignInError(null);
+        return;
+      }
+      setSignInError(message);
+    } finally {
+      setSignInBusy(false);
+    }
+  }
+
+  async function handleEmailSignUpFromChat() {
+    setEmailError(null);
+    setSignInError(null);
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !password || !confirmPassword) {
+      setEmailError("Please fill out all three fields.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setEmailError("Passwords do not match.");
+      return;
+    }
+
+    setEmailBusy(true);
+    try {
+      const auth = getFirebaseAuth();
+      const credential = await createUserWithEmailAndPassword(
+        auth,
+        trimmedEmail,
+        password,
+      );
+      const idToken = await credential.user.getIdToken();
+      const res = await fetch("/api/auth/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken }),
+        credentials: "include",
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        isNew?: boolean;
+      };
+      if (!res.ok) {
+        throw new Error(data.error || "Could not create session");
+      }
+      await auth.signOut();
+      await refresh();
+      await claimGuestPoll();
+      if (data.isNew) {
+        router.push("/onboarding");
+      } else {
+        router.push("/");
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Could not create account.";
+      setEmailError(message);
+    } finally {
+      setEmailBusy(false);
+    }
+  }
+
   return (
-    <div className="flex h-[100dvh] w-full bg-[var(--bg-primary)] text-[var(--text-primary)]">
+    <div className="flex h-[100dvh] min-h-0 w-full bg-[var(--bg-primary)] text-[var(--text-primary)]">
 
       {/* ═══════════════════════════════════════════════════ */}
       {/* DESKTOP (lg+): 2-column layout (sidebar + chat)    */}
       {/* ═══════════════════════════════════════════════════ */}
-      <div className="hidden lg:flex lg:flex-1">
+      <div className="hidden min-h-0 lg:flex lg:flex-1">
 
         {/* ── Left column: Meeting groups ──────────────── */}
         <div className="flex w-[260px] shrink-0 flex-col border-r border-[var(--divider)] bg-[var(--bg-secondary)]">
@@ -690,7 +1103,7 @@ export default function Home() {
         </div>
 
         {/* ── Right column: Full-width Chat ──────────────── */}
-        <div className="flex flex-1 flex-col bg-[var(--bg-sheet)]">
+        <div className="flex min-h-0 flex-1 flex-col bg-[var(--bg-sheet)]">
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-5 py-4">
             <div className="flex min-w-0 items-center gap-2">
               <h2 className="text-lg font-semibold">Chat</h2>
@@ -707,71 +1120,73 @@ export default function Home() {
               </Button>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="lg"
-                title="Availability heatmap"
-                className={cn(
-                  "p-2",
-                  showHeatmap &&
-                    "bg-[var(--bg-tertiary)] text-[var(--accent-primary)]",
-                )}
-                onClick={() => setShowHeatmap(!showHeatmap)}
-              >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <rect x="3" y="3" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
-                  <rect x="10" y="3" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
-                  <rect x="17" y="3" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
-                  <rect x="3" y="10" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
-                  <rect x="10" y="10" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
-                  <rect x="17" y="10" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
-                  <rect x="3" y="17" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
-                  <rect x="10" y="17" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
-                  <rect x="17" y="17" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
-                </svg>
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="lg"
-                title="My calendar"
-                className={cn(
-                  "p-2",
-                  showCalendar &&
-                    "bg-[var(--bg-tertiary)] text-[var(--accent-primary)]",
-                )}
-                onClick={() => setShowCalendar(!showCalendar)}
-              >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.75" />
-                  <path d="M3 9h18M8 2v4M16 2v4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
-                </svg>
-              </Button>
-              <Link href="/availability">
-                <Button variant="ghost" size="lg" title="Availability" className="p-2">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <rect x="2" y="3" width="20" height="18" rx="2" stroke="currentColor" strokeWidth="1.75" />
-                    <path d="M2 9h20M6 2v7M12 2v7M18 2v7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
-                  </svg>
-                </Button>
-              </Link>
-              <Link href="/network">
-                <Button variant="ghost" size="lg" title="Network" className="p-2">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <circle cx="7" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.5" />
-                    <circle cx="17" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.5" />
-                    <circle cx="12" cy="16" r="2.5" stroke="currentColor" strokeWidth="1.5" />
-                    <path d="M9 10c.5.5 1.5 1 3 1s2.5-.5 3-1M7 10v2c0 1.5.5 2.5 2 3M17 10v2c0 1.5-.5 2.5-2 3M12 18.5v2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </Button>
-              </Link>
               {user ? (
-                <Link href="/profile">
-                  <Button variant="ghost" className="p-1.5" title="Profile">
-                    <Avatar name={user.displayName ?? "User"} size={24} />
+                <>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="lg"
+                    title="Availability heatmap"
+                    className={cn(
+                      "p-2",
+                      showHeatmap &&
+                        "bg-[var(--bg-tertiary)] text-[var(--accent-primary)]",
+                    )}
+                    onClick={() => setShowHeatmap(!showHeatmap)}
+                  >
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                      <rect x="3" y="3" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
+                      <rect x="10" y="3" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
+                      <rect x="17" y="3" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
+                      <rect x="3" y="10" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
+                      <rect x="10" y="10" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
+                      <rect x="17" y="10" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
+                      <rect x="3" y="17" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
+                      <rect x="10" y="17" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
+                      <rect x="17" y="17" width="4" height="4" rx="1" stroke="currentColor" strokeWidth="1.75" />
+                    </svg>
                   </Button>
-                </Link>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="lg"
+                    title="My calendar"
+                    className={cn(
+                      "p-2",
+                      showCalendar &&
+                        "bg-[var(--bg-tertiary)] text-[var(--accent-primary)]",
+                    )}
+                    onClick={() => setShowCalendar(!showCalendar)}
+                  >
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                      <rect x="3" y="4" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.75" />
+                      <path d="M3 9h18M8 2v4M16 2v4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+                    </svg>
+                  </Button>
+                  <Link href="/availability">
+                    <Button variant="ghost" size="lg" title="Availability" className="p-2">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <rect x="2" y="3" width="20" height="18" rx="2" stroke="currentColor" strokeWidth="1.75" />
+                        <path d="M2 9h20M6 2v7M12 2v7M18 2v7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+                      </svg>
+                    </Button>
+                  </Link>
+                  <Link href="/network">
+                    <Button variant="ghost" size="lg" title="Network" className="p-2">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <circle cx="7" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+                        <circle cx="17" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+                        <circle cx="12" cy="16" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+                        <path d="M9 10c.5.5 1.5 1 3 1s2.5-.5 3-1M7 10v2c0 1.5.5 2.5 2 3M17 10v2c0 1.5-.5 2.5-2 3M12 18.5v2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </Button>
+                  </Link>
+                  <Link href="/profile">
+                    <Button variant="ghost" className="p-1.5" title="Profile">
+                      <Avatar name={user.displayName ?? "User"} size={24} />
+                    </Button>
+                  </Link>
+                </>
               ) : (
                 <Link href="/auth">
                   <Button variant="primary" size="sm" className="font-medium">
@@ -782,31 +1197,44 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto overscroll-contain py-2">
+          <div
+            ref={chatScrollDesktopRef}
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-2"
+          >
             {!chatStarted ? (
-              <div className="flex flex-col items-center justify-center h-full px-6 py-8">
-                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--bg-tertiary)]">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="var(--text-tertiary)" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
+              user ? (
+                <div className="flex flex-col items-center justify-center h-full px-6 py-8">
+                  <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--bg-tertiary)]">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" stroke="var(--text-tertiary)" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                  <p className="text-sm font-medium text-[var(--text-secondary)] mb-6">
+                    Schedule a meeting without the back-and-forth
+                  </p>
+                  <div className="w-full max-w-2xl grid grid-cols-2 gap-3">
+                    {CHAT_SUGGESTIONS.map((s) => (
+                      <button
+                        key={s.title}
+                        type="button"
+                        onClick={() => handleSendMessage(`Can we schedule ${s.title.toLowerCase().replace("?", "")} with ${s.body}`)}
+                        className="group flex flex-col items-start gap-2 rounded-2xl bg-[var(--bg-secondary)] px-5 py-4 text-left transition-all hover:bg-[var(--bg-tertiary)] border border-[var(--border)] hover:border-[var(--accent-primary)]/30 cursor-pointer"
+                      >
+                        <p className="text-sm font-semibold text-[var(--text-primary)] group-hover:text-[var(--accent-primary)] transition-colors">{s.title}</p>
+                        <p className="text-xs text-[var(--text-secondary)]">{s.body}</p>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <p className="text-sm font-medium text-[var(--text-secondary)] mb-6">
-                  Start a conversation to find meeting times
-                </p>
-                <div className="w-full max-w-2xl grid grid-cols-2 gap-3">
-                  {CHAT_SUGGESTIONS.map((s) => (
-                    <button
-                      key={s.title}
-                      type="button"
-                      onClick={() => handleSendMessage(`Can we schedule ${s.title.toLowerCase().replace("?", "")} with ${s.body}`)}
-                      className="group flex flex-col items-start gap-2 rounded-2xl bg-[var(--bg-secondary)] px-5 py-4 text-left transition-all hover:bg-[var(--bg-tertiary)] border border-[var(--border)] hover:border-[var(--accent-primary)]/30 cursor-pointer"
-                    >
-                      <p className="text-sm font-semibold text-[var(--text-primary)] group-hover:text-[var(--accent-primary)] transition-colors">{s.title}</p>
-                      <p className="text-xs text-[var(--text-secondary)]">{s.body}</p>
-                    </button>
-                  ))}
+              ) : (
+                <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 py-8">
+                  <GuestChatEmptyState
+                    className="w-full max-w-2xl"
+                    onCreateEvent={handleGuestCreateEvent}
+                    onQuickStart={handleGuestQuickStart}
+                  />
                 </div>
-              </div>
+              )
             ) : (
               <ChatContent
                 messages={messages}
@@ -819,6 +1247,25 @@ export default function Home() {
                 onSuggestionClick={handleSendMessage}
               />
             )}
+
+            {!user && latestGuestEvent && !isLoading && (
+              <AssistantGoogleSignInPrompt
+                busy={signInBusy}
+                emailBusy={emailBusy}
+                error={signInError}
+                emailError={emailError}
+                showEmailForm={emailFormOpen}
+                email={email}
+                password={password}
+                confirmPassword={confirmPassword}
+                onSignIn={handleGoogleSignInFromChat}
+                onToggleEmailForm={() => setEmailFormOpen((open) => !open)}
+                onEmailChange={setEmail}
+                onPasswordChange={setPassword}
+                onConfirmPasswordChange={setConfirmPassword}
+                onEmailSignUp={handleEmailSignUpFromChat}
+              />
+            )}
           </div>
 
           <SchedulingParticipantsBar
@@ -827,7 +1274,14 @@ export default function Home() {
           />
           <ChatInput
             onSend={handleSendMessage}
-            placeholder="Message… type /network to view your network"
+            value={chatInputDraft}
+            onValueChange={setChatInputDraft}
+            focusRequestId={chatInputFocusRequest}
+            placeholder={
+              user
+                ? "Message… type /network to view your network"
+                : "Describe what you want to schedule…"
+            }
           />
         </div>
 
@@ -949,7 +1403,7 @@ export default function Home() {
       {/* ═══════════════════════════════════════════════════ */}
       {/* TABLET (md to lg): 2-column (groups + chat)        */}
       {/* ═══════════════════════════════════════════════════ */}
-      <div className="hidden md:flex md:flex-1 lg:hidden">
+      <div className="hidden min-h-0 md:flex md:flex-1 lg:hidden">
         {/* Left: groups */}
         <div className="flex w-[260px] shrink-0 flex-col border-r border-[var(--divider)] bg-[var(--bg-secondary)]">
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-4">
@@ -1006,7 +1460,7 @@ export default function Home() {
         </div>
 
         {/* Right: chat */}
-        <div className="flex flex-1 flex-col bg-[var(--bg-primary)]">
+        <div className="flex min-h-0 flex-1 flex-col bg-[var(--bg-primary)]">
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-5 py-4">
             <div className="flex min-w-0 items-center gap-2">
               <h2 className="text-lg font-semibold">Chat</h2>
@@ -1023,24 +1477,36 @@ export default function Home() {
               </Button>
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto overscroll-contain py-2">
+          <div
+            ref={chatScrollTabletRef}
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-2"
+          >
             {!chatStarted ? (
-              <div className="flex flex-col gap-2 px-4 py-4">
-                <p className="text-xs font-medium text-[var(--text-tertiary)]">Quick schedule</p>
-                {CHAT_SUGGESTIONS.map((s) => (
-                  <button
-                    key={s.title}
-                    type="button"
-                    onClick={() => handleSendMessage(`Can we schedule ${s.title.toLowerCase().replace("?", "")} with ${s.body}`)}
-                    className="flex items-start gap-3 rounded-xl bg-[var(--bg-secondary)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-tertiary)] cursor-pointer"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-[var(--text-primary)]">{s.title}</p>
-                      <p className="text-xs text-[var(--text-tertiary)]">{s.body}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
+              user ? (
+                <div className="flex flex-col gap-2 px-4 py-4">
+                  <p className="text-xs font-medium text-[var(--text-tertiary)]">Quick schedule</p>
+                  {CHAT_SUGGESTIONS.map((s) => (
+                    <button
+                      key={s.title}
+                      type="button"
+                      onClick={() => handleSendMessage(`Can we schedule ${s.title.toLowerCase().replace("?", "")} with ${s.body}`)}
+                      className="flex items-start gap-3 rounded-xl bg-[var(--bg-secondary)] px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-tertiary)] cursor-pointer"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-[var(--text-primary)]">{s.title}</p>
+                        <p className="text-xs text-[var(--text-tertiary)]">{s.body}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="px-4 py-4">
+                  <GuestChatEmptyState
+                    onCreateEvent={handleGuestCreateEvent}
+                    onQuickStart={handleGuestQuickStart}
+                  />
+                </div>
+              )
             ) : (
               <ChatContent
                 messages={messages}
@@ -1058,7 +1524,17 @@ export default function Home() {
             participants={schedulingParticipants}
             onRemove={handleRemoveParticipant}
           />
-          <ChatInput onSend={handleSendMessage} placeholder="Message… type /network to view your network" />
+          <ChatInput
+            onSend={handleSendMessage}
+            value={chatInputDraft}
+            onValueChange={setChatInputDraft}
+            focusRequestId={chatInputFocusRequest}
+            placeholder={
+              user
+                ? "Message… type /network to view your network"
+                : "Describe what you want to schedule…"
+            }
+          />
         </div>
       </div>
 
@@ -1066,7 +1542,7 @@ export default function Home() {
       {/* MOBILE (<md): Full-screen chat with bottom sheet   */}
       {/* No calendar — just suggestions + chat              */}
       {/* ═══════════════════════════════════════════════════ */}
-      <div className="relative flex flex-1 flex-col md:hidden">
+      <div className="relative flex min-h-0 flex-1 flex-col md:hidden">
         {/* Nav */}
         <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-3">
           <h1 className="text-lg font-bold text-[var(--text-primary)]">When2Meet</h1>
@@ -1119,64 +1595,74 @@ export default function Home() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto overscroll-contain py-2">
+        <div
+          ref={chatScrollMobileRef}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-2"
+        >
           {!chatStarted ? (
-            <>
-              {/* Meeting groups as cards */}
-              <div className="px-4 py-2">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
-                  Quick schedule
-                </p>
-                <div className="flex flex-col gap-2">
-                  {CHAT_SUGGESTIONS.map((s) => (
-                    <button
-                      key={s.title}
-                      type="button"
-                      onClick={() => handleSendMessage(`Can we schedule ${s.title.toLowerCase().replace("?", "")} with ${s.body}`)}
-                      className="flex items-start gap-3 rounded-xl bg-[var(--bg-secondary)] px-3 py-3 text-left transition-colors hover:bg-[var(--bg-tertiary)] cursor-pointer"
-                    >
-                      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--bubble-action)] text-[var(--text-link)]">
-                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                          <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        </svg>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[15px] font-medium text-[var(--text-primary)]">{s.title}</p>
-                        <p className="text-xs text-[var(--text-tertiary)]">{s.body}</p>
-                      </div>
-                    </button>
-                  ))}
+            user ? (
+              <>
+                <div className="px-4 py-2">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
+                    Quick schedule
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    {CHAT_SUGGESTIONS.map((s) => (
+                      <button
+                        key={s.title}
+                        type="button"
+                        onClick={() => handleSendMessage(`Can we schedule ${s.title.toLowerCase().replace("?", "")} with ${s.body}`)}
+                        className="flex items-start gap-3 rounded-xl bg-[var(--bg-secondary)] px-3 py-3 text-left transition-colors hover:bg-[var(--bg-tertiary)] cursor-pointer"
+                      >
+                        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--bubble-action)] text-[var(--text-link)]">
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                            <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                          </svg>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[15px] font-medium text-[var(--text-primary)]">{s.title}</p>
+                          <p className="text-xs text-[var(--text-tertiary)]">{s.body}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              {/* Meeting groups list */}
-              <div className="px-4 pt-4">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
-                  Groups
-                </p>
-                <div className="flex flex-col gap-1">
-                  {MEETING_GROUPS.map((g) => (
-                    <button
-                      key={g.id}
-                      type="button"
-                      onClick={() => {
-                        setActiveGroup(g.id);
-                      }}
-                      className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-secondary)] cursor-pointer"
-                    >
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--bg-secondary)] text-sm font-semibold text-[var(--text-secondary)]">
-                        {g.name.charAt(0)}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-[var(--text-primary)]">{g.name}</p>
-                        <p className="text-xs text-[var(--text-tertiary)]">{g.members.join(", ")}</p>
-                      </div>
-                      <span className="text-[11px] text-[var(--text-tertiary)]">{g.lastActive}</span>
-                    </button>
-                  ))}
+                <div className="px-4 pt-4">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
+                    Groups
+                  </p>
+                  <div className="flex flex-col gap-1">
+                    {MEETING_GROUPS.map((g) => (
+                      <button
+                        key={g.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveGroup(g.id);
+                        }}
+                        className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-secondary)] cursor-pointer"
+                      >
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--bg-secondary)] text-sm font-semibold text-[var(--text-secondary)]">
+                          {g.name.charAt(0)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-[var(--text-primary)]">{g.name}</p>
+                          <p className="text-xs text-[var(--text-tertiary)]">{g.members.join(", ")}</p>
+                        </div>
+                        <span className="text-[11px] text-[var(--text-tertiary)]">{g.lastActive}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
+              </>
+            ) : (
+              <div className="px-4 py-2">
+                <GuestChatEmptyState
+                  onCreateEvent={handleGuestCreateEvent}
+                  onQuickStart={handleGuestQuickStart}
+                />
               </div>
-            </>
+            )
           ) : (
             <ChatContent
               messages={messages}
@@ -1196,7 +1682,17 @@ export default function Home() {
           participants={schedulingParticipants}
           onRemove={handleRemoveParticipant}
         />
-        <ChatInput onSend={handleSendMessage} placeholder="Message… type /network to view your network" />
+        <ChatInput
+          onSend={handleSendMessage}
+          value={chatInputDraft}
+          onValueChange={setChatInputDraft}
+          focusRequestId={chatInputFocusRequest}
+          placeholder={
+            user
+              ? "Message… type /network to view your network"
+              : "Describe what you want to schedule…"
+          }
+        />
       </div>
 
       {user?.uid ? (

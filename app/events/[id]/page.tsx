@@ -225,8 +225,6 @@ export default function EventPage() {
               eventId={eventId}
               startDate={event.dateRangeStart}
               endDate={event.dateRangeEnd}
-              creatorId={event.createdBy}
-              creatorName={event.creatorName}
               earliestTime={event.earliestTime}
               latestTime={event.latestTime}
               timePosition="left"

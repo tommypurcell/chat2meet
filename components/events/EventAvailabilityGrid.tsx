@@ -3,12 +3,13 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
-import { loadGuestSession, saveGuestSession } from "@/lib/guest-session";
+import { clearGuestSession, loadGuestSession, saveGuestSession } from "@/lib/guest-session";
 import {
   defaultEventTimeSlotLabels,
   EVENT_GRID_DAY_COLUMN_PX,
   EVENT_GRID_SLOT_HEIGHT_PX,
   EVENT_GRID_TIME_COLUMN_PX,
+  getVisibleSlotRange,
 } from "@/lib/event-grid-slots";
 
 type CellKey = `${number}-${number}`;
@@ -19,8 +20,6 @@ interface EventAvailabilityGridProps {
   eventId: string;
   startDate: string; // ISO date
   endDate: string; // ISO date
-  creatorId?: string; // Pre-filled creator ID (for guest events)
-  creatorName?: string; // Creator's display name
   /** Event poll window (informational; grid indices still match 9:00–17:00 / parse-availability) */
   earliestTime?: string;
   latestTime?: string;
@@ -31,8 +30,6 @@ export function EventAvailabilityGrid({
   eventId,
   startDate,
   endDate,
-  creatorId,
-  creatorName,
   earliestTime,
   latestTime,
   timePosition = "left",
@@ -44,6 +41,7 @@ export function EventAvailabilityGrid({
   const [hasLoadedInitialAvailability, setHasLoadedInitialAvailability] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string>("");
+  const [guestNameInput, setGuestNameInput] = useState("");
   const paintModeRef = useRef<boolean>(true);
   const gridRef = useRef<HTMLDivElement>(null);
 
@@ -68,9 +66,21 @@ export function EventAvailabilityGrid({
     return result;
   }, [startDate, endDate]);
 
-  const timeSlots = useMemo(() => defaultEventTimeSlotLabels(), []);
+  const { startSlotIdx, endSlotIdx } = useMemo(
+    () =>
+      getVisibleSlotRange({
+        earliestTime,
+        latestTime,
+        padSlots: 4,
+      }),
+    [earliestTime, latestTime],
+  );
+  const timeSlots = useMemo(
+    () => defaultEventTimeSlotLabels(startSlotIdx, endSlotIdx),
+    [startSlotIdx, endSlotIdx],
+  );
 
-  // Determine user ID (either logged in user, provided creator, or guest prompt)
+  // Determine user ID (logged-in account or event-scoped guest identity)
   useEffect(() => {
     if (user?.uid) {
       setCurrentUserId(user.uid);
@@ -78,42 +88,25 @@ export function EventAvailabilityGrid({
       return;
     }
 
-    const guestSession = loadGuestSession();
-    const guestSessionMatchesEvent =
-      guestSession &&
-      (guestSession.lastEventId === eventId ||
-        (creatorId ? guestSession.guestId === creatorId : false));
+    const guestSession = loadGuestSession(eventId);
 
-    if (guestSession && guestSessionMatchesEvent) {
+    if (guestSession) {
       setCurrentUserId(guestSession.guestId);
       setDisplayName(guestSession.name);
       return;
     }
 
-    if (creatorId && creatorName) {
-      // Use provided creator ID (for when viewing your own event as guest creator)
-      setCurrentUserId(creatorId);
-      setDisplayName(creatorName);
-    } else {
-      // For other guest users, prompt for their name
-      const guestName = prompt("Please enter your name to add your availability:");
-      if (guestName) {
-        const guestId = `guest_${guestName.toLowerCase().replace(/\s+/g, '_')}`;
-        setCurrentUserId(guestId);
-        setDisplayName(guestName);
-        saveGuestSession({
-          guestId,
-          name: guestName,
-          source: "agent",
-          lastEventId: eventId,
-        });
-      }
-    }
-  }, [user, creatorId, creatorName, eventId]);
+    setCurrentUserId(null);
+    setDisplayName("");
+  }, [eventId, user]);
 
   // Fetch initial selected slots for this event
   useEffect(() => {
-    if (!currentUserId) return;
+    if (!currentUserId) {
+      setSelected(new Set());
+      setHasLoadedInitialAvailability(false);
+      return;
+    }
 
     setHasLoadedInitialAvailability(false);
 
@@ -234,6 +227,30 @@ export function EventAvailabilityGrid({
     setPainting(false);
   }, []);
 
+  const handleGuestStart = useCallback(() => {
+    const trimmedName = guestNameInput.trim();
+    if (!trimmedName) return;
+
+    const guestId = `guest_${trimmedName.toLowerCase().replace(/\s+/g, "_")}`;
+    setCurrentUserId(guestId);
+    setDisplayName(trimmedName);
+    saveGuestSession({
+      eventId,
+      guestId,
+      name: trimmedName,
+      source: "manual",
+    });
+  }, [eventId, guestNameInput]);
+
+  const handleSwitchIdentity = useCallback(() => {
+    clearGuestSession(eventId);
+    setCurrentUserId(null);
+    setDisplayName("");
+    setSelected(new Set());
+    setHasLoadedInitialAvailability(false);
+    setGuestNameInput("");
+  }, [eventId]);
+
   const TimeColumn = ({ time, isHour }: { time: string; isHour: boolean }) => (
     <td
       className={cn(
@@ -246,6 +263,60 @@ export function EventAvailabilityGrid({
       {isHour ? time : ""}
     </td>
   );
+
+  if (!user?.uid && !currentUserId) {
+    return (
+      <div className="flex h-full flex-col">
+        <div
+          className="flex shrink-0 flex-col justify-between px-3 pb-3"
+          style={{ minHeight: HEADER_SECTION_HEIGHT }}
+        >
+          <div>
+            <div className="text-[13px] font-medium text-[var(--text-primary)]">
+              Your Availability
+            </div>
+            <p className="mt-1 text-[11px] text-[var(--text-tertiary)]">
+              Enter your name to add availability to this event
+            </p>
+          </div>
+          {earliestTime && latestTime && (
+            <span className="text-[10px] text-[var(--text-secondary)]">
+              Poll window: {earliestTime}–{latestTime}
+            </span>
+          )}
+        </div>
+
+        <div className="flex flex-1 items-center justify-center px-3 pb-3">
+          <div className="w-full max-w-xs rounded-xl border border-[var(--divider)] bg-[var(--bg-secondary)] p-4">
+            <label className="mb-2 block text-[11px] font-medium text-[var(--text-secondary)]">
+              Your name
+            </label>
+            <input
+              type="text"
+              value={guestNameInput}
+              onChange={(e) => setGuestNameInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleGuestStart();
+                }
+              }}
+              placeholder="Enter your name"
+              className="w-full rounded-lg border border-[var(--input-border)] bg-[var(--input-bg)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none transition-colors focus:border-[var(--border-focused)]"
+            />
+            <button
+              type="button"
+              onClick={handleGuestStart}
+              disabled={!guestNameInput.trim()}
+              className="mt-3 w-full rounded-lg bg-[var(--accent-primary)] px-3 py-2 text-[13px] font-medium text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Continue as Guest
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -275,9 +346,18 @@ export function EventAvailabilityGrid({
         {!loading && (
           <span className="text-[10px] text-[var(--text-tertiary)]">Saved immediately</span>
         )}
+        {!user?.uid && currentUserId && (
+          <button
+            type="button"
+            onClick={handleSwitchIdentity}
+            className="w-fit text-[10px] text-[var(--accent-primary)] transition-opacity hover:opacity-80"
+          >
+            Not you? Switch guest
+          </button>
+        )}
         {earliestTime && latestTime && (
           <span className="text-[10px] text-[var(--text-secondary)]">
-            Poll window: {earliestTime}–{latestTime} (full grid 9:00–17:00)
+            Poll window: {earliestTime}–{latestTime}
           </span>
         )}
       </div>
@@ -339,7 +419,8 @@ export function EventAvailabilityGrid({
               </tr>
             </thead>
             <tbody>
-              {timeSlots.map((time, slotIdx) => {
+              {timeSlots.map((time, visibleRowIdx) => {
+                const slotIdx = startSlotIdx + visibleRowIdx;
                 const isHour = time.endsWith(":00");
                 return (
                   <tr key={time}>

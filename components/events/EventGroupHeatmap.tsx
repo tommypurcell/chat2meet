@@ -7,9 +7,20 @@ import {
   EVENT_GRID_DAY_COLUMN_PX,
   EVENT_GRID_SLOT_HEIGHT_PX,
   EVENT_GRID_TIME_COLUMN_PX,
+  getVisibleSlotRange,
 } from "@/lib/event-grid-slots";
 
 const HEADER_SECTION_HEIGHT = 112;
+
+function formatTime12(label: string): string {
+  const [hStr, mStr] = label.split(":");
+  const h = parseInt(hStr, 10);
+  const m = parseInt(mStr || "0", 10);
+  if (Number.isNaN(h)) return label;
+  const ap = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  return `${h12}:${m.toString().padStart(2, "0")} ${ap}`;
+}
 
 interface SlotDetail {
   dayIdx: number;
@@ -69,7 +80,19 @@ export function EventGroupHeatmap({
     return result;
   }, [startDate, endDate]);
 
-  const timeSlots = useMemo(() => defaultEventTimeSlotLabels(), []);
+  const { startSlotIdx, endSlotIdx } = useMemo(
+    () =>
+      getVisibleSlotRange({
+        earliestTime,
+        latestTime,
+        padSlots: 4,
+      }),
+    [earliestTime, latestTime],
+  );
+  const timeSlots = useMemo(
+    () => defaultEventTimeSlotLabels(startSlotIdx, endSlotIdx),
+    [startSlotIdx, endSlotIdx],
+  );
 
   useEffect(() => {
     if (currentParticipantIds.length === 0) {
@@ -139,6 +162,13 @@ export function EventGroupHeatmap({
     return `color-mix(in srgb, var(--accent-primary) ${opacity * 100}%, transparent)`;
   };
 
+  const n = participantIds.length;
+  const hoveredDay = hoveredSlot ? days[hoveredSlot.dayIdx] : null;
+  const hoveredWhen =
+    hoveredSlot && hoveredDay
+      ? `${hoveredDay.dayOfWeek} ${formatTime12(hoveredSlot.time)}`
+      : null;
+
   if (initialLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -178,21 +208,23 @@ export function EventGroupHeatmap({
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="text-[13px] font-medium text-[var(--text-primary)]">
-              Group Availability
+              Group availability
             </div>
             <p className="mt-1 text-[11px] text-[var(--text-tertiary)]">
-              Hover a slot to see who can make it
+              Mouseover the calendar to see who is available
             </p>
           </div>
           <div className="flex items-center gap-2 text-[10px] text-[var(--text-tertiary)]">
-            <span>0/{participantIds.length}</span>
+            <span>0/{n}</span>
             <div className="h-3 w-6 rounded-sm border border-[var(--divider)] bg-transparent" />
             <span>Some</span>
             <div
               className="h-3 w-6 rounded-sm"
               style={{ background: getHeatColor(0.5) }}
             />
-            <span>{participantIds.length}/{participantIds.length}</span>
+            <span>
+              {n}/{n}
+            </span>
             <div className="h-3 w-6 rounded-sm bg-[var(--accent-primary)]" />
           </div>
         </div>
@@ -206,18 +238,71 @@ export function EventGroupHeatmap({
         )}
         {earliestTime && latestTime && (
           <span className="text-[10px] text-[var(--text-secondary)]">
-            Poll window: {earliestTime}–{latestTime} (full grid 9:00–17:00)
+            Poll window: {earliestTime}–{latestTime}
           </span>
         )}
       </div>
 
-      <div className="custom-scrollbar min-h-0 w-full flex-1 overflow-auto px-3 pb-3">
-        <table
-          className="table-fixed border-collapse"
-          style={{
-            width: EVENT_GRID_TIME_COLUMN_PX + days.length * EVENT_GRID_DAY_COLUMN_PX,
-          }}
-        >
+      <div
+        className="custom-scrollbar flex min-h-0 flex-1 gap-3 px-3 pb-3"
+        onMouseLeave={() => setHoveredSlot(null)}
+      >
+        <aside className="flex w-[200px] shrink-0 flex-col rounded-xl border border-[var(--divider)] bg-[var(--bg-secondary)] p-3 sm:w-[240px]">
+          {!hoveredSlot || !hoveredWhen ? (
+            <p className="text-[11px] leading-relaxed text-[var(--text-tertiary)]">
+              Hover a time slot on the calendar to see who is free and who is not.
+            </p>
+          ) : (
+            <>
+              <p className="text-[12px] font-semibold text-[var(--text-primary)]">
+                {hoveredSlot.availableUsers.length}/{n} available
+              </p>
+              <p className="mt-1 text-[11px] text-[var(--text-secondary)]">{hoveredWhen}</p>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div className="min-w-0">
+                  <p className="border-b border-[var(--divider)] pb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+                    Available
+                  </p>
+                  {hoveredSlot.availableUsers.length === 0 ? (
+                    <p className="mt-2 text-[11px] text-[var(--text-tertiary)]">—</p>
+                  ) : (
+                    <ul className="mt-2 space-y-1.5 text-[11px] text-[var(--text-primary)]">
+                      {hoveredSlot.availableUsers.map((name, i) => (
+                        <li key={`a-${i}-${name}`} className="break-words">
+                          {name}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <p className="border-b border-[var(--divider)] pb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--text-tertiary)]">
+                    Unavailable
+                  </p>
+                  {hoveredSlot.unavailableUsers.length === 0 ? (
+                    <p className="mt-2 text-[11px] text-[var(--text-tertiary)]">—</p>
+                  ) : (
+                    <ul className="mt-2 space-y-1.5 text-[11px] text-[var(--text-tertiary)]">
+                      {hoveredSlot.unavailableUsers.map((name, i) => (
+                        <li key={`u-${i}-${name}`} className="break-words">
+                          {name}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </aside>
+
+        <div className="custom-scrollbar min-h-0 min-w-0 flex-1 overflow-auto">
+          <table
+            className="table-fixed border-collapse"
+            style={{
+              width: EVENT_GRID_TIME_COLUMN_PX + days.length * EVENT_GRID_DAY_COLUMN_PX,
+            }}
+          >
           <colgroup>
             <col style={{ width: EVENT_GRID_TIME_COLUMN_PX }} />
             {days.map((day) => (
@@ -244,7 +329,8 @@ export function EventGroupHeatmap({
               </tr>
             </thead>
             <tbody>
-              {timeSlots.map((time, slotIdx) => {
+              {timeSlots.map((time, visibleRowIdx) => {
+                const slotIdx = startSlotIdx + visibleRowIdx;
                 const isHour = time.endsWith(":00");
                 return (
                   <tr key={time}>
@@ -256,8 +342,10 @@ export function EventGroupHeatmap({
                     </td>
                     {days.map((day, dayIdx) => {
                       const slot = getSlot(dayIdx, slotIdx);
-                      const score = slot?.score || 0;
+                      const score = slot?.score ?? 0;
                       const bg = getHeatColor(score);
+                      const isHovered =
+                        hoveredSlot?.dayIdx === dayIdx && hoveredSlot?.slotIdx === slotIdx;
 
                       return (
                         <td
@@ -267,14 +355,16 @@ export function EventGroupHeatmap({
                             dayIdx === 0 && "border-l border-l-[var(--divider)]",
                             isHour
                               ? "border-t border-t-[var(--divider)]"
-                              : "border-t border-t-[var(--divider)]/30"
+                              : "border-t border-t-[var(--divider)]/30",
+                            isHovered && "ring-1 ring-inset ring-[var(--accent-primary)] z-[1]"
                           )}
                           style={{
                             background: bg,
                             height: EVENT_GRID_SLOT_HEIGHT_PX,
                           }}
-                          onMouseEnter={() => slot && setHoveredSlot(slot)}
-                          onMouseLeave={() => setHoveredSlot(null)}
+                          onMouseEnter={() => {
+                            if (slot) setHoveredSlot(slot);
+                          }}
                         />
                       );
                     })}
@@ -283,44 +373,7 @@ export function EventGroupHeatmap({
               })}
             </tbody>
           </table>
-
-        {/* Tooltip */}
-        {hoveredSlot && (
-          <div
-            className="pointer-events-none fixed z-50 rounded-lg border border-[var(--border)] bg-[var(--bg-sheet)] px-3 py-2 shadow-[var(--shadow-elevated)] backdrop-blur-xl"
-            style={{
-              left: "50%",
-              top: "20%",
-              transform: "translateX(-50%)",
-            }}
-          >
-            <div className="mb-1 text-[11px] font-semibold text-[var(--text-primary)]">
-              {hoveredSlot.time}
-            </div>
-
-            {hoveredSlot.availableUsers.length > 0 && (
-              <div className="mb-1">
-                <div className="text-[10px] font-medium text-[var(--text-secondary)]">
-                  Available ({hoveredSlot.availableUsers.length})
-                </div>
-                <div className="text-[11px] text-[var(--text-primary)]">
-                  {hoveredSlot.availableUsers.join(", ")}
-                </div>
-              </div>
-            )}
-
-            {hoveredSlot.unavailableUsers.length > 0 && (
-              <div>
-                <div className="text-[10px] font-medium text-[var(--text-tertiary)]">
-                  Unavailable ({hoveredSlot.unavailableUsers.length})
-                </div>
-                <div className="text-[11px] text-[var(--text-tertiary)]">
-                  {hoveredSlot.unavailableUsers.join(", ")}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+        </div>
       </div>
 
       <style jsx>{`

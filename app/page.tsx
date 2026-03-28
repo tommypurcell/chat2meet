@@ -42,7 +42,7 @@ import {
   loadSchedulingParticipants,
   saveSchedulingParticipants,
 } from "@/lib/scheduling-storage";
-import type { SchedulingParticipant } from "@/lib/types";
+import type { MessageRole, SchedulingParticipant } from "@/lib/types";
 import {
   formatCalendarEventsForPrompt,
   formatCalendarLoadErrorPrompt,
@@ -130,6 +130,10 @@ type ChatUiMessage = {
   parts?: unknown;
   content?: unknown;
 };
+
+function toMessageRole(role: string | undefined): MessageRole {
+  return role === "user" ? "user" : "assistant";
+}
 
 function GoogleMark() {
   return (
@@ -328,10 +332,14 @@ function ChatContent({
             }
             return (
               <div key={msg.id}>
-                <ChatMessage role={msg.role}>
+                <ChatMessage role={toMessageRole(msg.role)}>
                   <ChatMessageText
                     text={
-                      mergeUiMessageTextParts(msg.parts) ||
+                      mergeUiMessageTextParts(
+                        msg.parts as Parameters<
+                          typeof mergeUiMessageTextParts
+                        >[0],
+                      ) ||
                       (typeof msg.content === "string" ? msg.content : "")
                     }
                   />

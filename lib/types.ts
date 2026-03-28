@@ -70,6 +70,8 @@ export type EventDoc = {
   status: "draft" | "active" | "finalized" | "cancelled";
   bestSlot: SlotCandidate | null;
   finalizedSlot: SlotCandidate | null;
+  /** Canonical link to `/events/{id}` — stored at create time */
+  shareUrl?: string;
   createdAt: FirestoreTimestamp;
   updatedAt: FirestoreTimestamp;
 };

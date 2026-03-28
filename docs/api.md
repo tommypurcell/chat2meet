@@ -2,11 +2,11 @@
 
 Base URL in development: `http://localhost:3000`. All JSON bodies use `Content-Type: application/json`.
 
-**Auth:** None yet — treat as internal / dev-only until you add verification.
+**Auth:** Core CRUD samples below assume internal/dev use. In production, prefer **session cookies** (`firebase_session`) for routes that read the current user. See **Auth & chat** and **Calendar** subsections.
 
 **Errors:** Most failures return `{ "error": string }` with 4xx/5xx. Success bodies vary by route below.
 
-### Route index
+### Route index (core CRUD)
 
 | Path | Methods |
 | --- | --- |
@@ -17,10 +17,34 @@ Base URL in development: `http://localhost:3000`. All JSON bodies use `Content-T
 | `/api/network/[connectionId]` | GET, PATCH, DELETE |
 | `/api/events` | GET, POST |
 | `/api/events/[eventId]` | GET, PATCH, DELETE |
+| `/api/events/[eventId]/claim-guest` | POST |
 | `/api/events/[eventId]/participants` | GET, POST |
 | `/api/events/[eventId]/participants/[userId]` | GET, PATCH, DELETE |
 | `/api/events/[eventId]/availability` | GET, POST |
 | `/api/events/[eventId]/availability/[userId]` | GET, PATCH, DELETE |
+| `/api/events/[eventId]/group-availability` | POST | Aggregate participant availability for an event (body: `participantIds`, …) |
+
+### Route index (auth, chat, calendar)
+
+| Path | Methods | Notes |
+| --- | --- | --- |
+| `/api/auth/session` | POST | Exchange Firebase ID token for session cookie |
+| `/api/auth/me` | GET | Current user profile (session) |
+| `/api/auth/signout` | POST | Clear Firebase session cookie (`cookies.delete`) |
+| `/api/auth/logout` | POST | Clear session cookie (`maxAge: 0`); same goal as signout, different implementation |
+| `/api/auth/google`, `/api/auth/google/callback` | GET | Google OAuth for Calendar |
+| `/api/chat` | POST | Streaming UI message response; tools + Google/mock calendar |
+| `/api/test-chat` | POST | Same shape as chat; mock-heavy demo |
+| `/api/onboarding/chat` | POST | Onboarding assistant |
+| `/api/user`, `/api/user/[userId]`, `/api/user/availability` | GET, PATCH, … | Profile and preferences |
+| `/api/friends` | GET, POST | Friends / connections |
+| `/api/calendar/google/events` | GET | List events (OAuth, `userId` query) |
+| `/api/calendar/google/connect`, `disconnect`, `busy`, `calendars`, `heatmap`, `auth-url` | GET, POST, … | Google Calendar integration (per-user OAuth) |
+| `/api/calendar/heatmap` | POST | **Multi-user** slot grid for UI heatmap (`userIds`, date range, `timezone`, …) — see `lib/heatmap-types` |
+| `/api/calendar/availability` | POST | Multi-user availability slots (server-side math) |
+| `/api/calendars/sync` | POST | Save last-fetched Google events snapshot to **`calendars/{uid}`** (session) |
+
+Full request/response details for Google OAuth and calendar live in [google-calendar-setup.md](./google-calendar-setup.md) and [calendar-agent-integration.md](./calendar-agent-integration.md).
 
 ---
 
@@ -167,6 +191,26 @@ Updatable: `title`, `participantIds`, `dateRangeStart`, `dateRangeEnd`, `duratio
 
 **200** | **404**
 
+### `POST /api/events/[eventId]/claim-guest`
+
+Session-authenticated route used after a guest creates a poll and then signs up or signs in.
+
+| Body field | Required | Notes |
+| --- | --- | --- |
+| `guestId` | yes | Guest identity previously stored on the event, e.g. `guest_tim` |
+
+Behavior:
+
+- Verifies the signed-in user from the session cookie
+- Verifies the given `guestId` is the event creator or a participant on that event
+- Migrates `participants/{guestId}` and `availability/{guestId}` to the signed-in uid
+- Updates parent event `createdBy`, `creatorName`, and `participantIds`
+
+**200:** `{ success: true, eventId, userId, claimedFromGuestId }`  
+**400:** guest id missing / not attached to the event  
+**401:** no session  
+**404:** event missing
+
 ---
 
 ## Event participants — `events/{eventId}/participants`
@@ -255,6 +299,14 @@ Updatable: `source`, `busyBlocks`, `freeWindows`, `lastSyncedAt`.
 ### `DELETE /api/events/[eventId]/availability/[userId]`
 
 **200** | **404**
+
+---
+
+## Event group availability — aggregate
+
+### `POST /api/events/[eventId]/group-availability`
+
+Aggregates per-participant availability under the event for scoring / display. Expects JSON including **`participantIds`** (array). Returns slot summaries (e.g. scores, who is free). Used when building group views from stored `events/{eventId}/availability` data.
 
 ---
 

@@ -52,7 +52,7 @@ The app requests these scopes:
 - `email` - User email
 - `profile` - User profile info
 - `https://www.googleapis.com/auth/calendar.readonly` - Read calendar metadata
-- `https://www.googleapis.com/auth/calendar.events.readonly` - Read calendar events
+- `https://www.googleapis.com/auth/calendar.events` - Read and write calendar events
 
 ## How It Works
 

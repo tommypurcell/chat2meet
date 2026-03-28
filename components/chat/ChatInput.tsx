@@ -1,15 +1,48 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 type ChatInputProps = {
   onSend?: (message: string) => void;
   placeholder?: string;
+  /** When set with `onValueChange`, the draft is controlled by the parent. */
+  value?: string;
+  onValueChange?: (value: string) => void;
+  /** Increment to move focus into the textarea (e.g. Ask AI / quick-start prefill). */
+  focusRequestId?: number;
 };
 
 export function ChatInput({
   onSend,
   placeholder = "Schedule a meeting...",
+  value: valueProp,
+  onValueChange,
+  focusRequestId = 0,
 }: ChatInputProps) {
-  const [value, setValue] = useState("");
+  const [internalValue, setInternalValue] = useState("");
+  const controlled = valueProp !== undefined;
+  const value = controlled ? valueProp! : internalValue;
+
+  function setValue(next: string) {
+    if (controlled) {
+      onValueChange?.(next);
+    } else {
+      setInternalValue(next);
+    }
+  }
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (focusRequestId > 0) {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      const len = el.value.length;
+      try {
+        el.setSelectionRange(len, len);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [focusRequestId]);
 
   function submit() {
     const trimmed = value.trim();
@@ -31,9 +64,10 @@ export function ChatInput({
   }
 
   return (
-    <div className="flex items-end gap-2 border-t border-[var(--divider)] bg-[var(--bg-primary)] px-3 py-2">
+    <div className="flex items-end gap-2 border-t border-[var(--divider)] bg-[var(--bg-secondary)] px-3 py-2">
       <form onSubmit={onSubmit} className="flex flex-1 items-end gap-2">
         <textarea
+          ref={textareaRef}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={onKeyDown}

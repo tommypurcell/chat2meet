@@ -9,6 +9,7 @@ import {
   calculateFreeWindows,
   findCommonFreeSlots,
 } from "@/lib/calendar-utils";
+import { createCalendarEvent } from "@/lib/google-calendar";
 import type { SchedulingParticipant } from "@/lib/types";
 import { getSessionUserId } from "@/lib/auth-session";
 import { defaultDevUserId } from "@/lib/dev-user-ids";
@@ -26,6 +27,255 @@ import {
   mockEventsToBusyBlocks,
   resolveMockCalendarId,
 } from "@/lib/mock-calendar-agent";
+import {
+  calendarDateInTimeZone,
+  formatLocalDateTimeForPrompt,
+} from "@/lib/date-in-timezone";
+import { publicEventUrl } from "@/lib/event-url";
+import { defaultEventTimeSlotLabels } from "@/lib/event-grid-slots";
+import { inferAvailabilityBoundsFromSlots, parseAvailability } from "@/lib/parse-availability";
+
+type CellKey = `${number}-${number}`;
+
+function extractEventIdFromInput(input: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  try {
+    const url = new URL(trimmed);
+    const match = url.pathname.match(/\/events\/([^/?#]+)/);
+    if (match?.[1]) return match[1];
+  } catch {
+    // Not a URL; continue.
+  }
+
+  const pathMatch = trimmed.match(/\/events\/([^/?#]+)/);
+  if (pathMatch?.[1]) return pathMatch[1];
+
+  if (/^[A-Za-z0-9_-]{8,}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  return null;
+}
+
+function eventDateStringsBetween(start: string, end: string): string[] {
+  const dates: string[] = [];
+  const current = new Date(`${start}T12:00:00`);
+  const endDate = new Date(`${end}T12:00:00`);
+
+  while (current <= endDate) {
+    dates.push(current.toISOString().slice(0, 10));
+    current.setDate(current.getDate() + 1);
+  }
+
+  return dates;
+}
+
+function formatEventDayLabel(dateString: string): string {
+  return new Date(`${dateString}T12:00:00`).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function inferParticipantName(userId: string): string {
+  if (userId.startsWith("guest_")) {
+    return userId.replace("guest_", "").replace(/_/g, " ");
+  }
+  return userId;
+}
+
+async function buildEventPollSnapshot(eventIdOrUrl: string) {
+  const eventId = extractEventIdFromInput(eventIdOrUrl);
+  if (!eventId) {
+    throw new Error("Could not find an event id in that link or text.");
+  }
+
+  const eventRef = collection("events").doc(eventId);
+  const eventSnap = await eventRef.get();
+  if (!eventSnap.exists) {
+    throw new Error(`Event ${eventId} was not found.`);
+  }
+
+  const event = eventSnap.data() as {
+    title?: string;
+    createdBy?: string;
+    creatorName?: string;
+    participantIds?: string[];
+    dateRangeStart: string;
+    dateRangeEnd: string;
+    durationMinutes?: number;
+    timezone?: string;
+    earliestTime?: string;
+    latestTime?: string;
+    shareUrl?: string;
+    status?: string;
+  };
+
+  const [participantsSnapshot, availabilitySnapshot] = await Promise.all([
+    eventRef.collection("participants").get(),
+    eventRef.collection("availability").get(),
+  ]);
+
+  const participantNameById = new Map<string, string>();
+
+  participantsSnapshot.docs.forEach((doc) => {
+    const data = doc.data();
+    const explicitUserId =
+      typeof data.userId === "string" && data.userId.trim() ? data.userId.trim() : doc.id;
+    const name =
+      typeof data.name === "string" && data.name.trim()
+        ? data.name.trim()
+        : inferParticipantName(explicitUserId);
+    participantNameById.set(explicitUserId, name);
+  });
+
+  if (event.createdBy) {
+    participantNameById.set(
+      event.createdBy,
+      event.creatorName?.trim() || participantNameById.get(event.createdBy) || inferParticipantName(event.createdBy),
+    );
+  }
+
+  const availabilityByUserId = new Map<string, Set<CellKey>>();
+  availabilitySnapshot.docs.forEach((doc) => {
+    const data = doc.data();
+    const slots = Array.isArray(data?.slots)
+      ? data.slots.filter((slot): slot is CellKey => typeof slot === "string")
+      : [];
+    availabilityByUserId.set(doc.id, new Set(slots));
+
+    if (!participantNameById.has(doc.id)) {
+      participantNameById.set(doc.id, inferParticipantName(doc.id));
+    }
+  });
+
+  const participantIds = Array.from(
+    new Set([
+      ...((Array.isArray(event.participantIds) ? event.participantIds : []).filter(
+        (id): id is string => typeof id === "string" && id.length > 0,
+      )),
+      ...(event.createdBy ? [event.createdBy] : []),
+      ...participantsSnapshot.docs.map((doc) => doc.id),
+      ...availabilitySnapshot.docs.map((doc) => doc.id),
+    ]),
+  );
+
+  const dateStrings = eventDateStringsBetween(event.dateRangeStart, event.dateRangeEnd);
+  const earliestSlotIdx = event.earliestTime
+    ? Math.max(0, Math.floor((Number(event.earliestTime.split(":")[0]) - 9) * 2 + Number(event.earliestTime.split(":")[1] || "0") / 30))
+    : 0;
+  const latestSlotIdx = event.latestTime
+    ? Math.max(earliestSlotIdx, Math.floor((Number(event.latestTime.split(":")[0]) - 9) * 2 + Number(event.latestTime.split(":")[1] || "0") / 30) - 1)
+    : 16;
+  const timeLabels = defaultEventTimeSlotLabels(earliestSlotIdx, latestSlotIdx);
+
+  const rankedSlots = dateStrings.flatMap((dateString, dayIdx) =>
+    timeLabels.map((time, visibleSlotIdx) => {
+      const slotIdx = earliestSlotIdx + visibleSlotIdx;
+      const key: CellKey = `${dayIdx}-${slotIdx}`;
+      const availableUsers = participantIds
+        .filter((userId) => availabilityByUserId.get(userId)?.has(key))
+        .map((userId) => participantNameById.get(userId) || inferParticipantName(userId));
+      const unavailableUsers = participantIds
+        .filter((userId) => !availabilityByUserId.get(userId)?.has(key))
+        .map((userId) => participantNameById.get(userId) || inferParticipantName(userId));
+      const availableCount = availableUsers.length;
+      const totalParticipants = participantIds.length;
+
+      return {
+        slotKey: key,
+        dayIdx,
+        slotIdx,
+        date: dateString,
+        dateLabel: formatEventDayLabel(dateString),
+        time,
+        availableCount,
+        totalParticipants,
+        score: totalParticipants > 0 ? availableCount / totalParticipants : 0,
+        availableUsers,
+        unavailableUsers,
+      };
+    }),
+  );
+
+  rankedSlots.sort((a, b) => {
+    if (b.availableCount !== a.availableCount) return b.availableCount - a.availableCount;
+    if (b.score !== a.score) return b.score - a.score;
+    if (a.dayIdx !== b.dayIdx) return a.dayIdx - b.dayIdx;
+    return a.slotIdx - b.slotIdx;
+  });
+
+  const everyoneAvailableSlots = rankedSlots.filter(
+    (slot) => slot.totalParticipants > 0 && slot.availableCount === slot.totalParticipants,
+  );
+
+  const participantSummaries = participantIds.map((userId) => {
+    const slots = availabilityByUserId.get(userId);
+    return {
+      userId,
+      name: participantNameById.get(userId) || inferParticipantName(userId),
+      hasAvailability: Boolean(slots && slots.size > 0),
+      slotCount: slots?.size ?? 0,
+    };
+  });
+
+  const missingResponders = participantSummaries
+    .filter((participant) => !participant.hasAvailability)
+    .map((participant) => participant.name);
+
+  const topSlots = rankedSlots.slice(0, 5);
+  const summaryLines = [
+    `Event: ${event.title || "Untitled event"}`,
+    `Range: ${event.dateRangeStart} to ${event.dateRangeEnd} (${event.timezone || "America/Los_Angeles"})`,
+    `Participants: ${participantSummaries.map((p) => p.name).join(", ") || "none yet"}`,
+    everyoneAvailableSlots.length > 0
+      ? `Everyone is available in ${everyoneAvailableSlots.length} slot(s). Best: ${everyoneAvailableSlots
+          .slice(0, 3)
+          .map((slot) => `${slot.dateLabel} at ${slot.time}`)
+          .join(", ")}`
+      : topSlots.length > 0
+        ? `No slot fits everyone yet. Best partial overlap: ${topSlots[0].dateLabel} at ${topSlots[0].time} (${topSlots[0].availableCount}/${topSlots[0].totalParticipants} available)`
+        : "No availability has been added yet.",
+    missingResponders.length > 0
+      ? `Still missing: ${missingResponders.join(", ")}`
+      : "Everyone on the poll has added some availability.",
+  ];
+
+  return {
+    eventId,
+    event: {
+      title: event.title || "Untitled event",
+      dateRangeStart: event.dateRangeStart,
+      dateRangeEnd: event.dateRangeEnd,
+      timezone: event.timezone || "America/Los_Angeles",
+      durationMinutes: event.durationMinutes || 60,
+      earliestTime: event.earliestTime || "09:00",
+      latestTime: event.latestTime || "17:00",
+      status: event.status || "active",
+      shareUrl: event.shareUrl || publicEventUrl(eventId),
+    },
+    participants: participantSummaries,
+    missingResponders,
+    gridSlots: rankedSlots.map((slot) => ({
+      dayIdx: slot.dayIdx,
+      slotIdx: slot.slotIdx,
+      date: slot.date,
+      dateLabel: slot.dateLabel,
+      time: slot.time,
+      availableCount: slot.availableCount,
+      totalParticipants: slot.totalParticipants,
+      score: slot.score,
+      availableUsers: slot.availableUsers,
+      unavailableUsers: slot.unavailableUsers,
+    })),
+    everyoneAvailableSlots: everyoneAvailableSlots.slice(0, 10),
+    topSlots,
+    summary: summaryLines.join("\n"),
+  };
+}
 
 function parseSchedulingParticipants(raw: unknown): SchedulingParticipant[] {
   if (!Array.isArray(raw)) return [];
@@ -41,11 +291,33 @@ function parseSchedulingParticipants(raw: unknown): SchedulingParticipant[] {
     }));
 }
 
+function buildRelativeDatePromptSection(
+  timeZone: string,
+  localDate: string,
+  localDateTime: string,
+  opts?: { requireConfirmationForRelativeDates?: boolean },
+): string {
+  const requireConfirmation = opts?.requireConfirmationForRelativeDates ?? false;
+
+  return `## Relative Dates And Timezones
+- The current assumed timezone is ${timeZone}.
+- The current local calendar date in that timezone is ${localDate}.
+- The current local time in that timezone is ${localDateTime}.
+- Interpret words like "today", "tomorrow", "tmrw", "this weekend", "next Monday", and "after work" using this local date/time context, never UTC.
+- If the timezone/date context is known and reliable, you may answer relative-date questions using it directly.
+${requireConfirmation
+    ? `- If the user uses a relative date before they have clearly confirmed the timezone context, pause and confirm it instead of guessing. Ask something short like: "Just to confirm, should I treat today as ${localDate} in ${timeZone}?"`
+    : `- If the user seems confused about relative dates or the timezone context may be wrong, briefly restate the exact date and timezone before proceeding.`}
+`;
+}
+
 export async function POST(req: Request) {
   const body = (await req.json()) as {
     messages?: UIMessage[];
     schedulingParticipants?: unknown;
     currentUserId?: string;
+    /** IANA zone from the browser (e.g. America/Los_Angeles) — used for "today" in the prompt. */
+    userTimezone?: string;
     /** Preformatted markdown from the client (same data as GET /api/calendar/google/events). */
     calendarContext?: string;
   };
@@ -88,8 +360,27 @@ export async function POST(req: Request) {
     body.schedulingParticipants,
   );
 
+  let userTimeZone = "America/Los_Angeles";
+  const tzFromClient =
+    typeof body.userTimezone === "string" ? body.userTimezone.trim() : "";
+  if (tzFromClient) {
+    userTimeZone = tzFromClient;
+  } else {
+    try {
+      const userSnap = await collection("users").doc(currentUserId).get();
+      const t = userSnap.data()?.timezone;
+      if (typeof t === "string" && t.trim()) userTimeZone = t.trim();
+    } catch {
+      /* keep default */
+    }
+  }
+
   const clientCalendar =
     typeof body.calendarContext === "string" ? body.calendarContext.trim() : "";
+
+  const promptNow = new Date();
+  const promptLocalDate = calendarDateInTimeZone(promptNow, userTimeZone);
+  const promptLocalDateTime = formatLocalDateTimeForPrompt(promptNow, userTimeZone);
 
   // Prefer the same preformatted block the browser already built from GET /api/calendar/google/events
   // so the agent always matches what you see in devtools. Fallback: fetch on the server.
@@ -105,8 +396,7 @@ export async function POST(req: Request) {
     try {
       if (currentUserId) {
         const now = new Date();
-        const nextWeek = new Date(now);
-        nextWeek.setDate(now.getDate() + 7);
+        const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
         const accountsSnapshot = await collection("users")
           .doc(currentUserId)
@@ -178,7 +468,7 @@ export async function POST(req: Request) {
             ")",
           );
 
-          const rangeLabel = `${now.toISOString().split("T")[0]} → ${nextWeek.toISOString().split("T")[0]}`;
+          const rangeLabel = `${calendarDateInTimeZone(now, userTimeZone)} → ${calendarDateInTimeZone(nextWeek, userTimeZone)}`;
 
           const mapped = events
             .filter((e) => e.start?.dateTime)
@@ -188,20 +478,11 @@ export async function POST(req: Request) {
               end: e.end?.dateTime,
             }));
 
-          let timeZone = "America/Los_Angeles";
-          try {
-            const userSnap = await collection("users").doc(currentUserId).get();
-            const t = userSnap.data()?.timezone;
-            if (typeof t === "string" && t.trim()) timeZone = t.trim();
-          } catch {
-            /* keep default */
-          }
-
           userCalendarData = formatCalendarEventsForPrompt(
             currentUserId,
             mapped,
             `next 7 days (${rangeLabel})`,
-            timeZone,
+            userTimeZone,
           );
         }
       } else {
@@ -224,17 +505,8 @@ No user id in session — cannot load calendar.`;
     "chars",
   );
 
-  let timeZoneForMock = "America/Los_Angeles";
-  try {
-    const userSnap = await collection("users").doc(currentUserId).get();
-    const t = userSnap.data()?.timezone;
-    if (typeof t === "string" && t.trim()) timeZoneForMock = t.trim();
-  } catch {
-    /* keep default */
-  }
-
   const mockNetworkCalendarsBlock = formatMockNetworkCalendarsForPrompt(
-    timeZoneForMock,
+    userTimeZone,
     Date.now(),
     { omitUserIds: [] },
   );
@@ -255,25 +527,100 @@ Rules:
 `
       : "";
 
-  const systemPrompt = `You are Chat2Meet Agent, a smart scheduling assistant.
+  // Check if user is logged in
+  const isLoggedIn = sessionUserId !== null;
+
+  const systemPrompt = isLoggedIn
+    ? `You are Chat2Meet Agent, a smart scheduling assistant.
 Help users find times to meet with their friends and colleagues.
 
 ## Current User
 The logged-in user's ID is: ${currentUserId ?? "(unknown)"}
 
-IMPORTANT: Today's date is ${new Date().toISOString().split("T")[0]}.
+IMPORTANT: The user's local timezone is ${userTimeZone}. Local calendar date (not UTC): ${calendarDateInTimeZone(new Date(), userTimeZone)}. Local time now: ${formatLocalDateTimeForPrompt(new Date(), userTimeZone)}. Use this local date for "today", "this week", and similar — do not infer the calendar day from UTC.
+
+${buildRelativeDatePromptSection(userTimeZone, promptLocalDate, promptLocalDateTime)}
 
 ${userCalendarData}
 ${mockNetworkCalendarsBlock}
 
-On your first message, introduce yourself briefly. Then:
-- Keep responses brief and conversational
+## Response Style
+- **CRITICAL**: Keep ALL responses SHORT and conversational (1-3 sentences max)
+- Write like texting a friend, not writing an email
+- Be direct and helpful, not verbose or flowery
+- On first message, introduce yourself in ONE sentence
+
+## How to Schedule
 - For the **current user's** schedule in the next ~7 days, rely on the **User's Google Calendar** and **Computed availability** sections above when present
 - **"When am I free?"** Use the **Free** gaps in **Computed availability** (timezone shown there). Never say you are "free all day" on a day that has any **Busy** interval or timed event. Do not invent free time inside a busy block.
 - For **Janet, Pete, Phil**, and other people in **Demo network calendars**, use the schedules above or call \`getSchedule\` / \`findOverlap\` with ids \`janet\`, \`pete\`, \`phil\` (or legacy \`user_janet\`, etc. — both work). Demo event dates are **Mar 15–29, 2026** (\`America/Los_Angeles\`).
 - When a user mentions meeting with someone specific, use your tools to find overlapping free times and suggest specific times
+- If the user pastes an event poll link or event id and asks about that poll, call \`getEventPoll\` before answering questions about availability, missing responders, or best times
+- If the user wants to visually inspect an event poll in chat, call \`showEventPoll\` with the event link or id after you understand which poll they mean
 - Call suggestTimes when you find good meeting times to display them interactively
+- You can create events on the user's Google Calendar with the \`createEvent\` tool
+- **NEVER call createEvent without the user's explicit confirmation.** Always summarise the event (title, date/time, attendees) and ask "Should I create this?" first.
+- After creating an event, tell the user it was added and include the Google Calendar link from the result
 ${schedulingBlock}
+${AGENT_PLAIN_TEXT_OUTPUT_RULES}`
+    : `You are Chat2Meet Agent helping someone create a scheduling poll (like When2Meet).
+
+## Guests only (no one is logged in — there is no session)
+
+${buildRelativeDatePromptSection(userTimeZone, promptLocalDate, promptLocalDateTime, {
+  requireConfirmationForRelativeDates: true,
+})}
+
+Follow this order. Ask **one short question at a time** (1–2 sentences). Wait for an answer before the next step.
+If they already gave information in an earlier message, do not ask for it again. Acknowledge what you captured and only ask for what is still missing, **in this order**.
+If they answered multiple steps across multiple messages, reuse those answers.
+If they say "yes" to a timezone/date confirmation question, treat that timezone/date context as confirmed and do not ask for timezone again unless they later change it.
+If you need to confirm a relative date/timezone assumption, send only that confirmation question in its own message. Do not combine it with the next scheduling question.
+If a message starts with "Just to confirm..." or any timezone/date confirmation, that message must contain only the confirmation. No second sentence asking for dates, availability, title, or anything else.
+
+**1) Date window**
+First, make sure the date window is clear enough to build the poll.
+If they already said something clear like "tomorrow", "next week", "this weekend", or a specific date range, do not ask for dates again.
+Only ask for dates if the window is still unclear.
+
+**2) Availability / time windows**
+Once the date window is clear, ask about their availability next.
+If they said "next week", your next question should be about time windows, for example: "What times are you available next week? For example, 10 AM-3 PM or 9 AM-5 PM."
+Ask about availability before title or name.
+
+**3) Confirm whether it applies to all days — only if needed**
+If they give a time range but it is unclear whether it applies to every day in the window, ask one short follow-up like: "Is that the same availability for all days next week?"
+Do not ask this if they already made it clear.
+
+**4) Meeting title**
+Ask: What should we call this meeting?
+
+**5) Their name**
+Ask: What name should show on the poll for you?
+
+**6) Timezone — last before creating**
+Ask: What timezone should we use for this poll? (e.g. America/Los_Angeles, or "Pacific".)
+Skip this question if the timezone was already confirmed earlier in the conversation.
+Do **not** call createGuestEvent until you have a clear timezone (or a common zone name you can map).
+
+**7) Create the poll**
+When you have: dates/window, their availability text (including any earliest/latest limits), title, their name, and timezone → call **createGuestEvent**.
+For recurring or "every Monday" style answers, turn the next few occurrences into concrete dateRangeStart / dateRangeEnd for the tool.
+Pass earliestTime / latestTime from their constraints when they gave bounds (e.g. 9:00 and 17:00).
+
+Then send one short final confirmation only, with wording like: "Your poll for Team meet is ready below."
+Do not paste the raw share URL in the text reply if the chat already shows the poll card.
+Do not add a sign-up prompt in the same success message.
+Immediately after createGuestEvent succeeds, call **showEventPoll** with the new event id so the poll card / heatmap appears in chat before your final text reply.
+
+**Critical rules**
+- This strict When2Meet-style order applies only in guest mode (no logged-in user).
+- Keep every reply SHORT and plain (see OUTPUT FORMAT below).
+- Never mention "/network" or "Scheduling with" (those are for logged-in users only).
+- Do not use getSchedule, findOverlap, or createEvent for Google Calendar in guest mode unless the user logs in; focus on createGuestEvent for the poll.
+- If the user pastes a poll link or event id and asks about that poll, call \`getEventPoll\` to inspect the existing event before answering.
+- If the user wants to see the poll/grid in chat, call \`showEventPoll\` with the event link or id.
+
 ${AGENT_PLAIN_TEXT_OUTPUT_RULES}`;
 
   console.log("=== AGENT INPUT (System Prompt) ===");
@@ -347,6 +694,62 @@ ${AGENT_PLAIN_TEXT_OUTPUT_RULES}`;
               }));
           console.log("Returning friends:", friends);
           return friends;
+        },
+      }),
+
+      getEventPoll: tool({
+        description:
+          "Fetch an existing event poll by event id or pasted /events/... link, including participant availability, top overlap slots, and missing responders.",
+        inputSchema: z.object({
+          eventIdOrUrl: z
+            .string()
+            .describe("An event id like h1nRwE6n4aN9mFXgxJFn or a full event link like http://localhost:3000/events/h1nRwE6n4aN9mFXgxJFn"),
+        }),
+        execute: async ({ eventIdOrUrl }) => {
+          try {
+            console.log("=== TOOL: getEventPoll ===");
+            console.log("Input:", eventIdOrUrl);
+
+            const result = await buildEventPollSnapshot(eventIdOrUrl);
+
+            console.log("=== TOOL RESULT: getEventPoll ===");
+            console.log(JSON.stringify(result, null, 2));
+
+            return result;
+          } catch (error) {
+            console.error("Error fetching event poll:", error);
+            return {
+              error: error instanceof Error ? error.message : "Failed to load event poll",
+            };
+          }
+        },
+      }),
+
+      showEventPoll: tool({
+        description:
+          "Show an existing event poll as an in-chat card with the overlap grid, top slots, and missing responders.",
+        inputSchema: z.object({
+          eventIdOrUrl: z
+            .string()
+            .describe("An event id or full /events/... link for the poll to show in chat"),
+        }),
+        execute: async ({ eventIdOrUrl }) => {
+          try {
+            console.log("=== TOOL: showEventPoll ===");
+            console.log("Input:", eventIdOrUrl);
+
+            const snapshot = await buildEventPollSnapshot(eventIdOrUrl);
+            return {
+              success: true,
+              ...snapshot,
+            };
+          } catch (error) {
+            console.error("Error building in-chat event poll:", error);
+            return {
+              success: false,
+              error: error instanceof Error ? error.message : "Failed to show event poll",
+            };
+          }
         },
       }),
 
@@ -696,6 +1099,255 @@ ${AGENT_PLAIN_TEXT_OUTPUT_RULES}`;
             console.log("=== TOOL ERROR: findOverlap ===");
             console.log(JSON.stringify(errorResult, null, 2));
             return errorResult;
+          }
+        },
+      }),
+
+      createEvent: tool({
+        description:
+          "Create an event on the current user's Google Calendar. ALWAYS confirm details with the user before calling this tool.",
+        inputSchema: z.object({
+          summary: z.string().describe("Event title"),
+          startDateTime: z
+            .string()
+            .describe("ISO-8601 start datetime (e.g. 2026-03-25T10:00:00-07:00)"),
+          endDateTime: z
+            .string()
+            .describe("ISO-8601 end datetime (e.g. 2026-03-25T11:00:00-07:00)"),
+          description: z.string().optional().describe("Optional event description"),
+          attendeeEmails: z
+            .array(z.string())
+            .optional()
+            .describe("Optional list of attendee email addresses"),
+          timeZone: z
+            .string()
+            .optional()
+            .describe("IANA timezone (e.g. America/Los_Angeles). Defaults to user preference."),
+        }),
+        execute: async ({
+          summary,
+          startDateTime,
+          endDateTime,
+          description,
+          attendeeEmails,
+          timeZone,
+        }) => {
+          try {
+            console.log("=== TOOL: createEvent ===");
+            console.log("Summary:", summary);
+            console.log("Start:", startDateTime, "End:", endDateTime);
+            console.log("Attendees:", attendeeEmails);
+
+            if (!currentUserId) {
+              return { error: "No user is logged in — cannot create an event." };
+            }
+
+            const accountsSnapshot = await collection("users")
+              .doc(currentUserId)
+              .collection("calendarAccounts")
+              .where("provider", "==", "google")
+              .where("isActive", "==", true)
+              .limit(1)
+              .get();
+
+            if (accountsSnapshot.empty) {
+              return {
+                error:
+                  "No Google Calendar connected. Ask the user to connect their calendar in Settings first.",
+              };
+            }
+
+            const accountDoc = accountsSnapshot.docs[0];
+            const accountData = accountDoc.data();
+
+            let accessToken = decrypt(accountData.accessToken);
+            const refreshToken = accountData.refreshToken
+              ? decrypt(accountData.refreshToken)
+              : null;
+
+            const tokenExpiresAt = accountData.tokenExpiresAt?.toDate();
+            if (tokenExpiresAt && tokenExpiresAt <= new Date()) {
+              if (!refreshToken) {
+                return { error: "Calendar token expired and no refresh token available." };
+              }
+
+              const oauth2Client = new googleApis.auth.OAuth2(
+                process.env.GOOGLE_CLIENT_ID,
+                process.env.GOOGLE_CLIENT_SECRET,
+                process.env.OAUTH_REDIRECT_URI,
+              );
+              oauth2Client.setCredentials({ refresh_token: refreshToken });
+
+              const { credentials } = await oauth2Client.refreshAccessToken();
+
+              const ts = timestamps();
+              await collection("users")
+                .doc(currentUserId)
+                .collection("calendarAccounts")
+                .doc(accountDoc.id)
+                .update({
+                  accessToken: credentials.access_token
+                    ? encrypt(credentials.access_token)
+                    : accountData.accessToken,
+                  tokenExpiresAt: credentials.expiry_date
+                    ? new Date(credentials.expiry_date)
+                    : null,
+                  updatedAt: ts.updatedAt,
+                });
+
+              if (credentials.access_token) {
+                accessToken = credentials.access_token;
+              }
+            }
+
+            let resolvedTimeZone = timeZone;
+            if (!resolvedTimeZone) {
+              resolvedTimeZone = userTimeZone;
+            }
+
+            const created = await createCalendarEvent(accessToken, {
+              summary,
+              startDateTime,
+              endDateTime,
+              timeZone: resolvedTimeZone,
+              description,
+              attendeeEmails,
+            });
+
+            console.log("=== TOOL RESULT: createEvent ===");
+            console.log(JSON.stringify(created, null, 2));
+
+            return {
+              success: true,
+              eventId: created.id,
+              htmlLink: created.htmlLink,
+              summary: created.summary,
+              start: created.start,
+              end: created.end,
+              attendees: created.attendees,
+            };
+          } catch (error) {
+            console.error("Error creating event:", error);
+            return {
+              error: error instanceof Error ? error.message : "Unknown error creating event",
+            };
+          }
+        },
+      }),
+
+      createGuestEvent: tool({
+        description:
+          "Create a scheduling poll for guests (not logged in). Call only after the conversation collected: date window, general times, meeting title, creator personal availability (and earliest/latest if stated), creator name, and timezone — in that guest flow order.",
+        inputSchema: z.object({
+          title: z.string().describe("Event title/name"),
+          dateRangeStart: z.string().describe("Start date ISO or friendly (e.g. '2026-03-24' or 'Mar 24')"),
+          dateRangeEnd: z.string().describe("End date ISO or friendly"),
+          timezone: z.string().describe("IANA timezone (e.g. 'America/Los_Angeles')"),
+          earliestTime: z.string().optional().describe("Earliest time to consider (e.g. '09:00')"),
+          latestTime: z.string().optional().describe("Latest time to consider (e.g. '17:00')"),
+          durationMinutes: z.number().optional().describe("Expected duration in minutes"),
+          creatorName: z.string().describe("The creator's name for the poll"),
+          creatorAvailability: z.string().describe("The creator's availability description (e.g. '9–12 and 1:30–3 both days')"),
+        }),
+        execute: async ({ title, dateRangeStart, dateRangeEnd, timezone, earliestTime, latestTime, durationMinutes, creatorName, creatorAvailability }) => {
+          console.log("=== TOOL: createGuestEvent ===");
+          console.log({ title, dateRangeStart, dateRangeEnd, timezone, earliestTime, latestTime, durationMinutes, creatorName, creatorAvailability });
+
+          try {
+            const db = await import("@/lib/firebase-admin").then(m => m.getDb());
+            // Parse creator's availability text into slot IDs
+            const parsedSlots = parseAvailability({
+              availabilityText: creatorAvailability,
+              dateRangeStart,
+              dateRangeEnd,
+              timezone,
+            });
+            const inferredBounds = inferAvailabilityBoundsFromSlots(parsedSlots);
+
+            console.log("Parsed availability slots:", parsedSlots);
+
+            // Use consistent creator ID
+            const creatorTempId = `guest_${creatorName.toLowerCase().replace(/\s+/g, '_')}`;
+
+            const eventRef = db.collection("events").doc();
+            const eventId = eventRef.id;
+            const shareUrl = publicEventUrl(eventId);
+
+            // Create event in Firestore (shareUrl stored on the document for clients / console)
+            const eventData = {
+              title,
+              createdBy: creatorTempId, // Store the actual guest ID, not just "guest"
+              creatorName, // Store the creator's name for display
+              participantIds: [creatorTempId],
+              dateRangeStart,
+              dateRangeEnd,
+              durationMinutes: durationMinutes || 60,
+              timezone,
+              status: "active",
+              earliestTime: earliestTime || inferredBounds?.earliestTime || "09:00",
+              latestTime: latestTime || inferredBounds?.latestTime || "17:00",
+              shareUrl,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            };
+
+            await eventRef.set(eventData);
+
+            // Create participant entry for the creator
+            const participantData = {
+              userId: creatorTempId,
+              eventId,
+              name: creatorName,
+              availabilityText: creatorAvailability,
+              isCreator: true,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            };
+
+            await db
+              .collection("events")
+              .doc(eventId)
+              .collection("participants")
+              .doc(creatorTempId)
+              .set(participantData);
+
+            // Save parsed availability slots to the availability subcollection
+            const availabilityData = {
+              userId: creatorTempId,
+              source: "agent_parsed",
+              slots: parsedSlots,
+              originalText: creatorAvailability,
+              busyBlocks: [],
+              freeWindows: [],
+              lastSyncedAt: new Date(),
+              updatedAt: new Date(),
+            };
+
+            await db.collection("events")
+              .doc(eventId)
+              .collection("availability")
+              .doc(creatorTempId)
+              .set(availabilityData);
+
+            return {
+              success: true,
+              eventId,
+              shareUrl,
+              guestId: creatorTempId,
+              creatorName,
+              title,
+              dateRangeStart,
+              dateRangeEnd,
+              timezone,
+              durationMinutes: durationMinutes || 60,
+              message: `Your poll for ${title} is ready below.`,
+            };
+          } catch (error) {
+            console.error("Error creating guest event:", error);
+            return {
+              success: false,
+              error: error instanceof Error ? error.message : "Failed to create event",
+            };
           }
         },
       }),

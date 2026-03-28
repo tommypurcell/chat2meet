@@ -10,6 +10,7 @@ import { TimeChip } from "@/components/ui/TimeChip";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { ChatMessage } from "@/components/chat/ChatMessage";
+import { ChatMessageText } from "@/components/chat/ChatMessageText";
 import { ActionBubble } from "@/components/chat/ActionBubble";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { AvailabilityGrid } from "@/components/calendar/AvailabilityGrid";
@@ -27,6 +28,7 @@ import {
   saveSchedulingParticipants,
 } from "@/lib/scheduling-storage";
 import type { SchedulingParticipant } from "@/lib/types";
+import { extractSuggestedTimesFromMessages } from "@/lib/chat-tool-outputs";
 import { cn, mergeUiMessageTextParts } from "@/lib/utils";
 import {
   CHAT_SUGGESTIONS,
@@ -104,14 +106,7 @@ function ChatContent({
   onCloseInvite: () => void;
   onSuggestionClick?: (text: string) => void;
 }) {
-  // Extract time slots from tool results in messages
-  const suggestedTimes = messages
-    .filter((msg) => msg.role === "assistant")
-    .flatMap((msg) => {
-      return msg.toolResults
-        ?.filter((result: any) => result.toolName === "suggestTimes")
-        .flatMap((result: any) => result.result?.suggestedTimes || []) || [];
-    });
+  const suggestedTimes = extractSuggestedTimesFromMessages(messages);
 
   return (
     <div>
@@ -136,10 +131,12 @@ function ChatContent({
       ) : (
         messages.map((msg) => (
           <ChatMessage key={msg.id} role={msg.role}>
-            <span className="whitespace-pre-wrap">
-              {mergeUiMessageTextParts(msg.parts) ||
-                (typeof msg.content === "string" ? msg.content : "")}
-            </span>
+            <ChatMessageText
+              text={
+                mergeUiMessageTextParts(msg.parts) ||
+                (typeof msg.content === "string" ? msg.content : "")
+              }
+            />
           </ChatMessage>
         ))
       )}
@@ -352,7 +349,7 @@ export default function Home() {
                   </>
                 )}
               </div>
-              <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">When2Meet</h2>
+              <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Chat2Meet</h2>
             </div>
             <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
                 {theme === "dark" ? (
@@ -531,7 +528,7 @@ export default function Home() {
         {/* Left: groups */}
         <div className="flex w-[260px] shrink-0 flex-col border-r border-[var(--divider)] bg-[var(--bg-secondary)]">
           <div className="flex shrink-0 items-center justify-between border-b border-[var(--divider)] px-4 py-4">
-            <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">When2Meet</h2>
+            <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Chat2Meet</h2>
             <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
                 {theme === "dark" ? (
                   <svg width="18" height="18" viewBox="0 0 20 20" fill="none">

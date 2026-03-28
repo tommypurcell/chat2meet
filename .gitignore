@@ -48,3 +48,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 firebase-service-account.json
+
+# Local Firestore exports (may contain PII)
+firebase_data.json

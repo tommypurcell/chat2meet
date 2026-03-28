@@ -30,6 +30,7 @@ export async function POST(
       source: body.source || "unknown",
       busyBlocks: body.busyBlocks || [],
       freeWindows: body.freeWindows || [],
+      slots: body.slots || [], // Grid-based availability (array of "dayIdx-slotIdx" strings)
       lastSyncedAt: body.lastSyncedAt || ts.createdAt,
       updatedAt: ts.updatedAt,
     };
@@ -45,7 +46,7 @@ export async function POST(
   }
 }
 
-// GET /api/events/[eventId]/availability - List availability
+// GET /api/events/[eventId]/availability - List availability or get specific user's availability
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ eventId: string }> }
@@ -54,11 +55,26 @@ export async function GET(
     const { eventId } = await params;
     const { searchParams } = request.nextUrl;
     const source = searchParams.get("source");
+    const userId = searchParams.get("userId");
 
     const eventRef = collection("events").doc(eventId);
     const eventResult = await getDocOrError(eventRef);
     if (eventResult.error) return eventResult.error;
 
+    // If userId is provided, fetch specific user's availability
+    if (userId) {
+      const availabilityRef = eventRef.collection("availability").doc(userId);
+      const doc = await availabilityRef.get();
+
+      if (!doc.exists) {
+        return successResponse({ success: true, slots: [] });
+      }
+
+      const data = doc.data();
+      return successResponse({ success: true, slots: data?.slots || [] });
+    }
+
+    // Otherwise, list all availability
     let query: FirebaseFirestore.Query = eventRef.collection("availability");
     if (source) {
       query = query.where("source", "==", source);

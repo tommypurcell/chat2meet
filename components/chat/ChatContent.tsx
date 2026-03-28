@@ -1,9 +1,11 @@
 import React from "react";
 import { ChatMessage } from "./ChatMessage";
+import { ChatMessageText } from "./ChatMessageText";
 import { ActionBubble } from "./ActionBubble";
 import { TimeChip } from "../ui/TimeChip";
 import { Avatar } from "../ui/Avatar";
 import { CHAT_SUGGESTIONS, SAMPLE_INVITE } from "@/lib/mock-data";
+import { extractSuggestedTimesFromMessages } from "@/lib/chat-tool-outputs";
 import { mergeUiMessageTextParts } from "@/lib/utils";
 
 /* ── Invite preview card (Screen 6) ──────────────────── */
@@ -70,14 +72,7 @@ export function ChatContent({
   onCloseInvite,
   onSuggestionClick,
 }: ChatContentProps) {
-  // Extract time slots from tool results in messages
-  const suggestedTimes = messages
-    .filter((msg) => msg.role === "assistant")
-    .flatMap((msg) => {
-      return msg.toolResults
-        ?.filter((result: any) => result.toolName === "suggestTimes")
-        .flatMap((result: any) => result.result?.suggestedTimes || []) || [];
-    });
+  const suggestedTimes = extractSuggestedTimesFromMessages(messages);
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -101,10 +96,12 @@ export function ChatContent({
       ) : (
         messages.map((msg) => (
           <ChatMessage key={msg.id} role={msg.role}>
-            <span className="whitespace-pre-wrap">
-              {mergeUiMessageTextParts(msg.parts) ||
-                (typeof msg.content === "string" ? msg.content : "")}
-            </span>
+            <ChatMessageText
+              text={
+                mergeUiMessageTextParts(msg.parts) ||
+                (typeof msg.content === "string" ? msg.content : "")
+              }
+            />
           </ChatMessage>
         ))
       )}

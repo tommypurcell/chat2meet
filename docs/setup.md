@@ -39,6 +39,12 @@ Do **not** paste full multiline JSON into `.env` — dotenv cannot load it relia
 
 `.env` and `.env.local` are gitignored; `.env.example` is committed.
 
+### AI and Google (chat + Calendar agent)
+
+- **`GEMINI_API_KEY`** — Required for `/api/chat`, `/api/test-chat`, and onboarding chat (Google Generative AI).
+- **`GEMINI_MODEL`** — Optional override (defaults are `gemini-3-flash-preview` in code where not set).
+- **Google OAuth** — `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `OAUTH_REDIRECT_URI` (and related) for Calendar connect; see [google-calendar-setup.md](./google-calendar-setup.md).
+
 ## Firestore seed data
 
 ```bash

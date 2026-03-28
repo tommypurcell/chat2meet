@@ -23,13 +23,14 @@ export function ChatMessage({ role, children, className }: ChatMessageProps) {
       )}
       <div
         className={cn(
-          "max-w-[280px] rounded-2xl px-3.5 py-2 text-base leading-[1.35] tracking-[-0.32px]",
+          /* block + w-fit: avoid inline-flex flex-item shrink-wrap leaving a second “column” of bubble bg inside the pill */
+          "block w-fit max-w-[280px] min-w-0 rounded-2xl px-3.5 py-2 text-base leading-[1.35] tracking-[-0.32px]",
           role === "user"
             ? "rounded-br-[4px] bg-[var(--bubble-sender)] text-[var(--bubble-sender-text)] shadow-[var(--glow-primary)]"
             : "rounded-bl-[4px] bg-[var(--bubble-receiver)] text-[var(--bubble-receiver-text)]",
         )}
       >
-        {children}
+        <div className="min-w-0 break-words [word-break:break-word]">{children}</div>
       </div>
     </div>
   );

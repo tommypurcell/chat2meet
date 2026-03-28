@@ -5,6 +5,10 @@ import { getAuth, getDb } from "@/lib/firebase-admin";
 import { FIREBASE_SESSION_COOKIE } from "@/lib/auth-session";
 import { cookies } from "next/headers";
 import { AGENT_PLAIN_TEXT_OUTPUT_RULES } from "@/lib/agent-plain-text-prompt";
+import {
+  calendarDateInTimeZone,
+  formatLocalDateTimeForPrompt,
+} from "@/lib/date-in-timezone";
 
 export async function POST(req: Request) {
   const { messages }: { messages: UIMessage[] } = await req.json();
@@ -12,6 +16,7 @@ export async function POST(req: Request) {
   // Get authenticated user
   let currentUserId: string | null = null;
   let userName = "there";
+  let userTimeZone = "America/Los_Angeles";
   try {
     const cookieStore = await cookies();
     const sessionCookie = cookieStore.get(FIREBASE_SESSION_COOKIE)?.value;
@@ -24,38 +29,49 @@ export async function POST(req: Request) {
       if (userDoc.exists) {
         const data = userDoc.data();
         userName = data?.name || data?.displayName || decoded.name || "there";
+        const tz = data?.timezone;
+        if (typeof tz === "string" && tz.trim()) userTimeZone = tz.trim();
       }
     }
   } catch (e) {
     console.error("Error fetching user for onboarding:", e);
   }
 
+  const now = new Date();
+
   const result = streamText({
     model: google(process.env.GEMINI_MODEL || "gemini-3-flash-preview"),
-    system: `You are the Chat2meet onboarding assistant. Your job is to welcome a new user and help them set up their account through a friendly, conversational flow.
+    system: `You are the Chat2meet onboarding assistant. Your job is to help someone get started through a brief, friendly conversation.
 
 The user's name is: ${userName}
 
-Your goals in order:
-1. Greet them warmly and briefly explain that Chat2meet helps them schedule meetings by chatting — it connects to Google Calendar and finds free times.
-2. Ask about their scheduling preferences through natural conversation. You need to learn:
-   - What time they prefer to start meetings (earliest hour, e.g. "9 AM")
-   - What time they want to stop having meetings (latest hour, e.g. "5 PM")
-   - Preferred meeting length (15, 30, 45, or 60 minutes)
-   - Which days they're available for meetings (weekdays only? include weekends?)
-   - Any private preferences they don't want others to see (e.g. "never schedule with David", "no meetings on Fridays after 2 PM", "prefer mornings")
-3. Once you have enough info, call savePreferences to save everything.
-4. After saving, tell them to connect their Google Calendar using the button that will appear, and let them know they can start scheduling right away.
+**Conversation Flow:**
 
-Guidelines:
-- Be brief and conversational — 1-2 sentences per message
-- Ask about 2-3 things at once to keep it fast, don't ask one question at a time
-- If they give short answers, fill in reasonable defaults and confirm
-- Make it feel like chatting with a friend, not filling out a form
-- You can use reasonable defaults: 9 AM start, 5 PM end, 30 min meetings, weekdays only
-- After saving preferences, call completeOnboarding
+1. **First message**: "Hey ${userName === "there" ? "" : userName + " "}— I can help you find the best time to meet people without the back-and-forth. Quick setup?"
 
-Today's date is ${new Date().toISOString().split("T")[0]}.
+2. **If they say yes or agree**: Ask about timezone first if not obvious: "What timezone are you in?" (or suggest "I'll use ${userTimeZone} if that's right.")
+
+3. **Then ask about any scheduling rules** (all in ONE message): "Any scheduling rules I should remember? Like 'no meetings before 10 AM' or 'weeknights only' or 'prefer weekends'. Totally optional!"
+
+4. **Use smart defaults if they don't give specifics**:
+   - Start time: 9 AM
+   - End time: 5 PM
+   - Max length: 30 min
+   - Days: weekdays only
+   - Private preferences: whatever they mentioned
+
+5. **After gathering info**: Call savePreferences, then say "You're set! Want to connect Google Calendar now to see your free times, or skip for now?"
+
+6. **Then immediately**: Call completeOnboarding and suggest first action: "Ready to schedule something? Try 'find time with Rae this week' or 'when are 5 of us free this weekend'."
+
+**Critical rules:**
+- Keep messages SHORT (1-2 sentences max)
+- NEVER ask more than 2 questions at once
+- Don't make it feel like a form - make it conversational
+- Use defaults liberally - don't force them to answer everything
+- Move FAST toward the first real scheduling action
+
+The user's timezone is ${userTimeZone}. Current time: ${formatLocalDateTimeForPrompt(now, userTimeZone)}.
 
 ${AGENT_PLAIN_TEXT_OUTPUT_RULES}`,
     messages: await convertToModelMessages(messages),

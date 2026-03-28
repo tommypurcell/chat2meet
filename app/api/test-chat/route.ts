@@ -19,6 +19,10 @@ import {
   mockEventsToBusyBlocks,
   resolveMockCalendarId,
 } from "@/lib/mock-calendar-agent";
+import {
+  calendarDateInTimeZone,
+  formatLocalDateTimeForPrompt,
+} from "@/lib/date-in-timezone";
 
 function parseSchedulingParticipants(raw: unknown): SchedulingParticipant[] {
   if (!Array.isArray(raw)) return [];
@@ -32,6 +36,20 @@ function parseSchedulingParticipants(raw: unknown): SchedulingParticipant[] {
       memberName: typeof p.memberName === "string" ? p.memberName : "",
       memberEmail: typeof p.memberEmail === "string" ? p.memberEmail : "",
     }));
+}
+
+function buildRelativeDatePromptSection(
+  timeZone: string,
+  localDate: string,
+  localDateTime: string,
+): string {
+  return `## Relative Dates And Timezones
+- The current assumed timezone is ${timeZone}.
+- The current local calendar date in that timezone is ${localDate}.
+- The current local time in that timezone is ${localDateTime}.
+- Interpret words like "today", "tomorrow", "tmrw", "this weekend", and "next Monday" using this local date/time context, never UTC.
+- If the user seems confused about relative dates or the timezone context may be wrong, briefly restate the exact date and timezone before proceeding.
+`;
 }
 
 export async function POST(req: Request) {
@@ -48,12 +66,16 @@ export async function POST(req: Request) {
 
   const schedulingParticipants = parseSchedulingParticipants(body.schedulingParticipants);
 
+  const demoTz = "America/Los_Angeles";
+  const promptNow = new Date();
+  const promptLocalDate = calendarDateInTimeZone(promptNow, demoTz);
+  const promptLocalDateTime = formatLocalDateTimeForPrompt(promptNow, demoTz);
+
   let userCalendarData = "";
   try {
     const now = new Date();
-    const nextWeek = new Date(now);
-    nextWeek.setDate(now.getDate() + 7);
-    const rangeLabel = `${now.toISOString().split("T")[0]} → ${nextWeek.toISOString().split("T")[0]}`;
+    const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const rangeLabel = `${calendarDateInTimeZone(now, demoTz)} → ${calendarDateInTimeZone(nextWeek, demoTz)}`;
 
     const calendarKey = resolveMockCalendarId(currentUserId);
     const rawEvents = calendarKey
@@ -71,7 +93,7 @@ export async function POST(req: Request) {
         currentUserId,
         mapped,
         `next 7 days (${rangeLabel})`,
-        "America/Los_Angeles",
+        demoTz,
         Date.now(),
         "demo",
       );
@@ -84,7 +106,7 @@ export async function POST(req: Request) {
   }
 
   const mockNetworkCalendarsBlock = formatMockNetworkCalendarsForPrompt(
-    "America/Los_Angeles",
+    demoTz,
     Date.now(),
     { omitUserIds: [currentUserId] },
   );
@@ -111,7 +133,9 @@ Help users find times to meet with their friends and colleagues.
 ## Current User
 The logged-in user's ID is: ${currentUserId ?? "(unknown)"}
 
-IMPORTANT: Today's date is ${new Date().toISOString().split("T")[0]}.
+IMPORTANT: Demo timezone is ${demoTz}. Local calendar date (not UTC): ${calendarDateInTimeZone(new Date(), demoTz)}. Local time now: ${formatLocalDateTimeForPrompt(new Date(), demoTz)}. Use this local date for "today" — do not infer the calendar day from UTC.
+
+${buildRelativeDatePromptSection(demoTz, promptLocalDate, promptLocalDateTime)}
 
 ${userCalendarData}
 ${mockNetworkCalendarsBlock}
@@ -121,7 +145,8 @@ On your first message, introduce yourself briefly. Then:
 - For the **current user's** schedule, rely on the **Demo calendar** section above for their id
 - For **Janet, Pete, Phil**, use **Demo network calendars** below or tools with ids \`janet\`, \`pete\`, \`phil\` (or \`user_janet\`, etc.). Demo dates are **Mar 15–29, 2026** (\`America/Los_Angeles\`).
 - When a user mentions meeting with someone specific, use your tools to find overlapping free times and suggest specific times
-- Call suggestTimes when you find good meeting times to display them interactively
+- **IMPORTANT**: You MUST call the \`suggestTimes\` tool whenever you provide meeting time recommendations. This displays the times as interactive chips that users can click. Format each time with {id, time: "5:00 PM", date: "Mon Mar 25"}. Always call this tool after finding available slots - never just list times in your text response.
+- Once the user selects or confirms a specific time slot (e.g. "Create an event for Monday at 2 PM"), call the \`createEvent\` tool to finalize the meeting on the platform and send Google Calendar invites.
 ${schedulingBlock}
 ${AGENT_PLAIN_TEXT_OUTPUT_RULES}`;
 
@@ -292,6 +317,26 @@ ${AGENT_PLAIN_TEXT_OUTPUT_RULES}`;
           } catch (error) {
             return { error: String(error) };
           }
+        },
+      }),
+
+      createEvent: tool({
+        description: "Create a meeting on the platform (mocked)",
+        inputSchema: z.object({
+          title: z.string().describe("The title of the meeting"),
+          startTime: z.string().describe("ISO start time string"),
+          endTime: z.string().describe("ISO end time string"),
+          participantIds: z.array(z.string()).optional().describe("User IDs to invite"),
+          description: z.string().optional().describe("Optional description"),
+        }),
+        execute: async ({ title, startTime, endTime, participantIds, description }) => {
+          console.log("=== MOCK TOOL: createEvent ===");
+          console.log("Input:", { title, startTime, endTime, participantIds, description });
+          return {
+            success: true,
+            eventId: "mock-event-id-" + Date.now(),
+            message: `Event "${title}" has been successfully created (MOCK).`,
+          };
         },
       }),
     },
